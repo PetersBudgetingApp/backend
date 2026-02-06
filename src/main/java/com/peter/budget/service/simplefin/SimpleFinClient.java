@@ -9,11 +9,13 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Slf4j
@@ -29,12 +31,13 @@ public class SimpleFinClient {
     public String exchangeSetupToken(String setupToken) {
         try {
             byte[] decoded = Base64.getUrlDecoder().decode(setupToken);
-            String claimUrl = new String(decoded);
+            String claimUrl = new String(decoded, StandardCharsets.UTF_8).trim();
+            URI claimUri = validateSimpleFinUri(claimUrl, false);
 
             log.info("Exchanging setup token at claim URL");
 
             String accessUrl = webClient.post()
-                    .uri(claimUrl)
+                    .uri(claimUri)
                     .retrieve()
                     .bodyToMono(String.class)
                     .block();
@@ -43,7 +46,10 @@ public class SimpleFinClient {
                 throw ApiException.badRequest("Failed to exchange setup token - empty response");
             }
 
-            return accessUrl.trim();
+            URI accessUri = validateSimpleFinUri(accessUrl.trim(), true);
+            return accessUri.toString();
+        } catch (ApiException e) {
+            throw e;
         } catch (IllegalArgumentException e) {
             throw ApiException.badRequest("Invalid setup token format");
         } catch (WebClientResponseException e) {
@@ -58,11 +64,12 @@ public class SimpleFinClient {
 
     public SimpleFinAccountsResponse fetchAccounts(String accessUrl, LocalDate startDate, LocalDate endDate) {
         try {
-            URI baseUri = URI.create(accessUrl);
+            URI baseUri = validateSimpleFinUri(accessUrl, true);
             String credentials = baseUri.getUserInfo();
+            String basePath = baseUri.getPath() != null ? baseUri.getPath().replaceAll("/+$", "") : "";
             String baseUrl = baseUri.getScheme() + "://" + baseUri.getHost() +
                     (baseUri.getPort() > 0 ? ":" + baseUri.getPort() : "") +
-                    baseUri.getPath();
+                    basePath;
 
             StringBuilder urlBuilder = new StringBuilder(baseUrl);
             urlBuilder.append("/accounts");
@@ -79,7 +86,7 @@ public class SimpleFinClient {
             }
 
             String authHeader = "Basic " + Base64.getEncoder()
-                    .encodeToString(credentials.getBytes());
+                    .encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
 
             log.debug("Fetching accounts from SimpleFin");
 
@@ -102,6 +109,47 @@ public class SimpleFinClient {
             log.error("Error fetching accounts from SimpleFin", e);
             throw ApiException.internal("Failed to fetch accounts: " + e.getMessage());
         }
+    }
+
+    private URI validateSimpleFinUri(String rawUrl, boolean requireCredentials) {
+        if (rawUrl == null || rawUrl.isBlank()) {
+            throw ApiException.badRequest("SimpleFin URL is empty");
+        }
+
+        URI uri;
+        try {
+            uri = URI.create(rawUrl);
+        } catch (IllegalArgumentException e) {
+            throw ApiException.badRequest("Invalid SimpleFin URL format");
+        }
+
+        String scheme = uri.getScheme();
+        String host = uri.getHost();
+        String userInfo = uri.getUserInfo();
+
+        if (scheme == null || !scheme.equalsIgnoreCase("https")) {
+            throw ApiException.badRequest("SimpleFin URL must use HTTPS");
+        }
+        if (host == null || !isAllowedSimpleFinHost(host)) {
+            throw ApiException.badRequest("SimpleFin URL host is not allowed");
+        }
+        if (uri.getFragment() != null) {
+            throw ApiException.badRequest("SimpleFin URL must not include URL fragments");
+        }
+
+        if (requireCredentials && (userInfo == null || userInfo.isBlank())) {
+            throw ApiException.badRequest("SimpleFin access URL is missing credentials");
+        }
+        if (!requireCredentials && userInfo != null) {
+            throw ApiException.badRequest("SimpleFin claim URL must not include credentials");
+        }
+
+        return uri;
+    }
+
+    private boolean isAllowedSimpleFinHost(String host) {
+        String normalized = host.toLowerCase(Locale.ROOT);
+        return normalized.equals("simplefin.org") || normalized.endsWith(".simplefin.org");
     }
 
     @SuppressWarnings("unchecked")

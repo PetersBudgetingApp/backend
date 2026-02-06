@@ -134,6 +134,14 @@ public class SimpleFinSyncService {
                     .syncedAt(Instant.now())
                     .build();
 
+        } catch (ApiException e) {
+            log.warn("Sync failed for connection {}: {}", connectionId, e.getMessage());
+
+            connection.setSyncStatus(SyncStatus.FAILED);
+            connection.setErrorMessage(e.getMessage());
+            connectionRepository.save(connection);
+
+            throw e;
         } catch (Exception e) {
             log.error("Sync failed for connection {}", connectionId, e);
 
@@ -141,11 +149,7 @@ public class SimpleFinSyncService {
             connection.setErrorMessage(e.getMessage());
             connectionRepository.save(connection);
 
-            return SyncResultDto.builder()
-                    .success(false)
-                    .message("Sync failed: " + e.getMessage())
-                    .syncedAt(Instant.now())
-                    .build();
+            throw ApiException.internal("Sync failed: " + e.getMessage());
         }
     }
 
@@ -170,6 +174,7 @@ public class SimpleFinSyncService {
         SimpleFinConnection connection = connectionRepository.findByIdAndUserId(connectionId, userId)
                 .orElseThrow(() -> ApiException.notFound("Connection not found"));
 
+        accountRepository.deleteByConnectionId(connection.getId());
         connectionRepository.deleteById(connection.getId());
     }
 

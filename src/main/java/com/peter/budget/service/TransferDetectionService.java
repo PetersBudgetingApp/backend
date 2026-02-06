@@ -1,5 +1,6 @@
 package com.peter.budget.service;
 
+import com.peter.budget.exception.ApiException;
 import com.peter.budget.model.dto.TransferPairDto;
 import com.peter.budget.model.entity.Account;
 import com.peter.budget.model.entity.Transaction;
@@ -153,13 +154,21 @@ public class TransferDetectionService {
 
     @Transactional
     public void markAsTransfer(Long userId, Long transactionId1, Long transactionId2) {
+        if (transactionId1.equals(transactionId2)) {
+            throw ApiException.badRequest("Cannot create transfer pair from the same transaction");
+        }
+
         Transaction tx1 = transactionRepository.findByIdAndUserId(transactionId1, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Transaction not found"));
+                .orElseThrow(() -> ApiException.notFound("Transaction not found"));
         Transaction tx2 = transactionRepository.findByIdAndUserId(transactionId2, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Transaction not found"));
+                .orElseThrow(() -> ApiException.notFound("Transaction not found"));
+
+        if (tx1.getAccountId().equals(tx2.getAccountId())) {
+            throw ApiException.badRequest("Transfer transactions must be from different accounts");
+        }
 
         if (tx1.getAmount().add(tx2.getAmount()).compareTo(BigDecimal.ZERO) != 0) {
-            throw new IllegalArgumentException("Transactions must have opposite amounts to be a transfer pair");
+            throw ApiException.badRequest("Transactions must have opposite amounts to be a transfer pair");
         }
 
         linkAsTransfer(tx1, tx2);
@@ -168,10 +177,10 @@ public class TransferDetectionService {
     @Transactional
     public void unlinkTransfer(Long userId, Long transactionId) {
         Transaction tx = transactionRepository.findByIdAndUserId(transactionId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Transaction not found"));
+                .orElseThrow(() -> ApiException.notFound("Transaction not found"));
 
         if (tx.getTransferPairId() == null) {
-            throw new IllegalArgumentException("Transaction is not part of a transfer pair");
+            throw ApiException.badRequest("Transaction is not part of a transfer pair");
         }
 
         transactionRepository.unlinkTransferPair(transactionId);

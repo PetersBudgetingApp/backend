@@ -92,6 +92,12 @@ public class AccountRepository {
         return count != null ? count : 0;
     }
 
+    public void deleteByConnectionId(Long connectionId) {
+        String sql = "DELETE FROM accounts WHERE connection_id = :connectionId";
+        var params = new MapSqlParameterSource("connectionId", connectionId);
+        jdbcTemplate.update(sql, params);
+    }
+
     public Account save(Account account) {
         if (account.getId() == null) {
             return insert(account);
