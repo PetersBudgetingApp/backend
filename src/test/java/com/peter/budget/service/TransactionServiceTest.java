@@ -1,5 +1,6 @@
 package com.peter.budget.service;
 
+import com.peter.budget.exception.ApiException;
 import com.peter.budget.model.dto.TransactionDto;
 import com.peter.budget.model.dto.TransactionUpdateRequest;
 import com.peter.budget.model.entity.Account;
@@ -20,6 +21,7 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
 import java.time.Instant;
 import java.util.List;
@@ -30,7 +32,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -188,6 +192,32 @@ class TransactionServiceTest {
         assertEquals(1, result.size());
         assertEquals(tracked.getId(), result.get(0).getId());
         verify(transactionReadRepository).findByUserIdAndCategorizationRuleId(USER_ID, rule.getId(), 100, 0);
+    }
+
+    @Test
+    void getTransactionsForwardsUncategorizedFilter() {
+        when(transactionReadRepository.findByUserIdWithFilters(
+                USER_ID, false, null, null, null, true, null, 100, 0))
+                .thenReturn(List.of(baseTransaction()));
+
+        List<TransactionDto> result = transactionService.getTransactions(
+                USER_ID, false, null, null, null, true, null, 100, 0);
+
+        assertEquals(1, result.size());
+        verify(transactionReadRepository).findByUserIdWithFilters(
+                USER_ID, false, null, null, null, true, null, 100, 0);
+    }
+
+    @Test
+    void getTransactionsRejectsCategoryIdWithUncategorizedFilter() {
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> transactionService.getTransactions(USER_ID, false, null, null, 12L, true, null, 100, 0)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verify(transactionReadRepository, never()).findByUserIdWithFilters(
+                eq(USER_ID), eq(false), eq(null), eq(null), eq(12L), eq(true), eq(null), eq(100), eq(0));
     }
 
     @Test

@@ -39,7 +39,8 @@ public class TransactionReadRepository {
 
     public List<Transaction> findByUserIdWithFilters(Long userId, boolean includeTransfers,
                                                       LocalDate startDate, LocalDate endDate,
-                                                      Long categoryId, Long accountId,
+                                                      Long categoryId, boolean uncategorized,
+                                                      Long accountId,
                                                       int limit, int offset) {
         StringBuilder sql = new StringBuilder("""
             SELECT t.* FROM transactions t
@@ -63,7 +64,9 @@ public class TransactionReadRepository {
             params.addValue("endDate", Timestamp.from(endDate.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)));
         }
 
-        if (categoryId != null) {
+        if (uncategorized) {
+            sql.append(" AND t.category_id IS NULL");
+        } else if (categoryId != null) {
             sql.append(" AND t.category_id = :categoryId");
             params.addValue("categoryId", categoryId);
         }

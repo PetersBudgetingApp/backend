@@ -32,11 +32,12 @@ public class TransactionController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) Long categoryId,
+            @RequestParam(defaultValue = "false") boolean uncategorized,
             @RequestParam(required = false) Long accountId,
             @RequestParam(defaultValue = "100") int limit,
             @RequestParam(defaultValue = "0") int offset) {
         List<TransactionDto> transactions = transactionService.getTransactions(
-                principal.userId(), includeTransfers, startDate, endDate, categoryId, accountId, limit, offset);
+                principal.userId(), includeTransfers, startDate, endDate, categoryId, uncategorized, accountId, limit, offset);
         return ResponseEntity.ok(transactions);
     }
 

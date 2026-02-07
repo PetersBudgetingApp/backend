@@ -38,10 +38,15 @@ public class TransactionService {
 
     public List<TransactionDto> getTransactions(Long userId, boolean includeTransfers,
                                                   LocalDate startDate, LocalDate endDate,
-                                                  Long categoryId, Long accountId,
+                                                  Long categoryId, boolean uncategorized,
+                                                  Long accountId,
                                                   int limit, int offset) {
+        if (uncategorized && categoryId != null) {
+            throw ApiException.badRequest("Cannot filter by categoryId when uncategorized=true");
+        }
+
         List<Transaction> transactions = transactionReadRepository.findByUserIdWithFilters(
-                userId, includeTransfers, startDate, endDate, categoryId, accountId, limit, offset);
+                userId, includeTransfers, startDate, endDate, categoryId, uncategorized, accountId, limit, offset);
 
         Map<Long, Account> accountCache = new HashMap<>();
         Map<Long, Category> categoryMap = categoryViewService.getEffectiveCategoryMapForUser(userId);
