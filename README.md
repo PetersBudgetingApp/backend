@@ -21,22 +21,64 @@ Spring Boot backend for a budgeting app that ingests accounts/transactions from 
 
 ## Local development
 
+For the fastest full-stack launch (frontend + backend + Postgres), run from the repository root:
+
+```bash
+docker compose up --build -d
+```
+
 ### Prerequisites
 
 - Java 21
 - Maven 3.9+
+- Docker (for PostgreSQL option)
 
-### Run
+### Backend-only run (H2, quickest)
+
+Run from `backend/`:
 
 ```bash
 mvn spring-boot:run
 ```
 
-Defaults (from `application.properties`):
+Defaults from `application.properties`:
 
 - Port: `8080`
 - DB: H2 in-memory (`jdbc:h2:mem:budgetdb`)
 - Flyway migrations enabled
+
+### Local PostgreSQL (recommended)
+
+Run from `backend/` to use `backend/docker-compose.yml`.
+
+Start PostgreSQL:
+
+```bash
+docker compose up -d
+```
+
+Run backend with local profile:
+
+```bash
+SPRING_PROFILES_ACTIVE=local \
+JWT_SECRET=replace-with-a-long-local-secret \
+ENCRYPTION_SECRET=replace-with-a-long-local-secret \
+mvn spring-boot:run
+```
+
+Defaults in `application-local.properties`:
+
+- DB URL: `jdbc:postgresql://localhost:5432/budget`
+- DB user/password: `budget` / `budget`
+- Flyway migrations enabled
+
+Helpful commands:
+
+```bash
+docker compose ps
+docker compose logs -f postgres
+docker compose down
+```
 
 ### Production config
 
