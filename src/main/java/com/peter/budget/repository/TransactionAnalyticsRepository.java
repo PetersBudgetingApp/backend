@@ -22,6 +22,7 @@ public class TransactionAnalyticsRepository {
         StringBuilder sql = new StringBuilder("""
             SELECT COALESCE(SUM(t.amount), 0) FROM transactions t
             JOIN accounts a ON t.account_id = a.id
+            LEFT JOIN categories c ON t.category_id = c.id
             WHERE a.user_id = :userId
               AND t.posted_at >= :startDate AND t.posted_at < :endDate
             """);
@@ -33,7 +34,11 @@ public class TransactionAnalyticsRepository {
         }
 
         if (excludeTransfers) {
-            sql.append(" AND t.exclude_from_totals = false");
+            sql.append("""
+                     AND t.exclude_from_totals = false
+                     AND t.is_internal_transfer = false
+                     AND (c.category_type IS NULL OR c.category_type <> 'TRANSFER')
+                    """);
         }
 
         var params = new MapSqlParameterSource()
@@ -49,10 +54,13 @@ public class TransactionAnalyticsRepository {
             SELECT t.category_id, COALESCE(SUM(ABS(t.amount)), 0) as total, COUNT(*) as count
             FROM transactions t
             JOIN accounts a ON t.account_id = a.id
+            LEFT JOIN categories c ON t.category_id = c.id
             WHERE a.user_id = :userId
               AND t.posted_at >= :startDate AND t.posted_at < :endDate
               AND t.amount < 0
               AND t.exclude_from_totals = false
+              AND t.is_internal_transfer = false
+              AND (c.category_type IS NULL OR c.category_type <> 'TRANSFER')
             GROUP BY t.category_id
             ORDER BY total DESC
             """;

@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 public class TransferDetectionService {
 
     private static final int TRANSFER_WINDOW_DAYS = 5;
-    private static final double MATCH_THRESHOLD = 0.7;
+    private static final double MATCH_THRESHOLD = 0.6;
 
     private static final Pattern TRANSFER_KEYWORDS = Pattern.compile(
             "(?i)(payment|transfer|xfer|ach|autopay|bill pay|internal|from.*checking|to.*savings)",
@@ -141,6 +141,13 @@ public class TransferDetectionService {
     @Transactional
     public void linkAsTransfer(Long userId, Transaction tx1, Transaction tx2) {
         transactionWriteRepository.linkTransferPair(tx1.getId(), tx2.getId());
+
+        tx1.setTransferPairId(tx2.getId());
+        tx2.setTransferPairId(tx1.getId());
+        tx1.setInternalTransfer(true);
+        tx2.setInternalTransfer(true);
+        tx1.setExcludeFromTotals(true);
+        tx2.setExcludeFromTotals(true);
 
         findTransferCategoryId(userId).ifPresent(transferCategoryId -> {
             if (!tx1.isManuallyCategorized()) {

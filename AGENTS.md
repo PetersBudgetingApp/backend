@@ -349,4 +349,4 @@ When the user supplies a correction that resolves a real issue:
 Use `notes_to_agent/_note_template.md` for note structure.
 
 ## Learned Fixes
-- None yet.
+- Transfer-linking flows must preserve `transfer_pair_id`, `is_internal_transfer`, and `exclude_from_totals` when applying category updates; otherwise analytics will overcount transfers as income/expense.
