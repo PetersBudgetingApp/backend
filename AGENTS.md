@@ -178,6 +178,11 @@ A new agent should be able to trace any endpoint to controller, service, reposit
   - `CategorizationRuleController.updateRule` -> `CategorizationRuleService.updateRule`
 - `DELETE /api/v1/categorization-rules/{id}`
   - `CategorizationRuleController.deleteRule` -> `CategorizationRuleService.deleteRule`
+- `GET /api/v1/categorization-rules/{id}/transactions`
+  - `CategorizationRuleController.getRuleTransactions` -> `TransactionService.getTransactionsForCategorizationRule`
+- `POST /api/v1/categorization-rules/backfill`
+  - `CategorizationRuleController.backfillRuleAssignments` -> `TransactionService.backfillCategorizationRules`
+  - Re-evaluates all non-manually-categorized user transactions against active rules and persists `categorized_by_rule_id`.
 
 ### Analytics
 - `GET /api/v1/analytics/spending`
@@ -223,6 +228,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 1. Resolve connection and check request quota policy.
 2. Run incremental sync window (`calculateStartDate` with overlap).
 3. Upsert accounts and transactions.
+   - Auto-categorized transactions also persist `categorized_by_rule_id` for rule-level traceability.
 4. If initial history not complete, run backfill windows backward in time.
 5. Backfill completion rules:
    - cutoff date reached (`1970-01-01`), or
@@ -255,6 +261,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 ### Entities
 - Auth: `User`, `RefreshToken`
 - Banking: `SimpleFinConnection`, `Account`, `Transaction`
+  - `Transaction` includes optional `categorized_by_rule_id` linkage when auto-categorized by a rule.
 - Classification: `Category`, `CategorizationRule`
 - Recurring: `RecurringPattern`
 

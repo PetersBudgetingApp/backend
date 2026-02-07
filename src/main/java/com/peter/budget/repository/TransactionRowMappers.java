@@ -24,6 +24,7 @@ final class TransactionRowMappers {
                 .payee(rs.getString("payee"))
                 .memo(rs.getString("memo"))
                 .categoryId(rs.getObject("category_id", Long.class))
+                .categorizedByRuleId(rs.getObject("categorized_by_rule_id", Long.class))
                 .manuallyCategorized(rs.getBoolean("is_manually_categorized"))
                 .transferPairId(rs.getObject("transfer_pair_id", Long.class))
                 .internalTransfer(rs.getBoolean("is_internal_transfer"))

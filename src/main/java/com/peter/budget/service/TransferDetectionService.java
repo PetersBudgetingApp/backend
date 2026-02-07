@@ -145,10 +145,12 @@ public class TransferDetectionService {
         findTransferCategoryId(userId).ifPresent(transferCategoryId -> {
             if (!tx1.isManuallyCategorized()) {
                 tx1.setCategoryId(transferCategoryId);
+                tx1.setCategorizedByRuleId(null);
                 transactionWriteRepository.save(tx1);
             }
             if (!tx2.isManuallyCategorized()) {
                 tx2.setCategoryId(transferCategoryId);
+                tx2.setCategorizedByRuleId(null);
                 transactionWriteRepository.save(tx2);
             }
         });

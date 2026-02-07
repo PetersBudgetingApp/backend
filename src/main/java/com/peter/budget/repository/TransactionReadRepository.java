@@ -26,6 +26,17 @@ public class TransactionReadRepository {
         return jdbcTemplate.query(sql, params, TransactionRowMappers.TRANSACTION_ROW_MAPPER);
     }
 
+    public List<Transaction> findByUserId(Long userId) {
+        String sql = """
+            SELECT t.* FROM transactions t
+            JOIN accounts a ON t.account_id = a.id
+            WHERE a.user_id = :userId
+            ORDER BY t.posted_at DESC
+            """;
+        var params = new MapSqlParameterSource("userId", userId);
+        return jdbcTemplate.query(sql, params, TransactionRowMappers.TRANSACTION_ROW_MAPPER);
+    }
+
     public List<Transaction> findByUserIdWithFilters(Long userId, boolean includeTransfers,
                                                       LocalDate startDate, LocalDate endDate,
                                                       Long categoryId, Long accountId,
@@ -77,6 +88,23 @@ public class TransactionReadRepository {
             ORDER BY t.posted_at DESC
             """;
         var params = new MapSqlParameterSource("userId", userId);
+        return jdbcTemplate.query(sql, params, TransactionRowMappers.TRANSACTION_ROW_MAPPER);
+    }
+
+    public List<Transaction> findByUserIdAndCategorizationRuleId(Long userId, Long ruleId, int limit, int offset) {
+        String sql = """
+            SELECT t.* FROM transactions t
+            JOIN accounts a ON t.account_id = a.id
+            WHERE a.user_id = :userId
+              AND t.categorized_by_rule_id = :ruleId
+            ORDER BY t.posted_at DESC
+            LIMIT :limit OFFSET :offset
+            """;
+        var params = new MapSqlParameterSource()
+                .addValue("userId", userId)
+                .addValue("ruleId", ruleId)
+                .addValue("limit", limit)
+                .addValue("offset", offset);
         return jdbcTemplate.query(sql, params, TransactionRowMappers.TRANSACTION_ROW_MAPPER);
     }
 

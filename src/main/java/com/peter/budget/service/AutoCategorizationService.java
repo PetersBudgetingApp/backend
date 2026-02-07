@@ -19,7 +19,7 @@ public class AutoCategorizationService {
 
     private final CategorizationRuleRepository ruleRepository;
 
-    public Long categorize(Long userId, String description, String payee, String memo) {
+    public CategorizationMatch categorize(Long userId, String description, String payee, String memo) {
         List<CategorizationRule> rules = ruleRepository.findActiveRulesForUser(userId);
 
         for (CategorizationRule rule : rules) {
@@ -27,12 +27,14 @@ public class AutoCategorizationService {
 
             if (textToMatch != null && matches(textToMatch, rule.getPattern(), rule.getPatternType())) {
                 log.debug("Matched rule '{}' for text: {}", rule.getName(), textToMatch);
-                return rule.getCategoryId();
+                return new CategorizationMatch(rule.getId(), rule.getCategoryId());
             }
         }
 
         return null;
     }
+
+    public record CategorizationMatch(Long ruleId, Long categoryId) {}
 
     private String getTextToMatch(MatchField matchField, String description, String payee, String memo) {
         return switch (matchField) {

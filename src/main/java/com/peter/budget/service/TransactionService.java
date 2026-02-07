@@ -2,6 +2,7 @@ package com.peter.budget.service;
 
 import com.peter.budget.exception.ApiException;
 import com.peter.budget.model.dto.CategoryDto;
+import com.peter.budget.model.dto.CategorizationRuleBackfillResultDto;
 import com.peter.budget.model.dto.TransactionCoverageDto;
 import com.peter.budget.model.dto.TransactionDto;
 import com.peter.budget.model.dto.TransactionUpdateRequest;
@@ -10,6 +11,7 @@ import com.peter.budget.model.entity.Account;
 import com.peter.budget.model.entity.Category;
 import com.peter.budget.model.entity.Transaction;
 import com.peter.budget.repository.AccountRepository;
+import com.peter.budget.repository.CategorizationRuleRepository;
 import com.peter.budget.repository.TransactionReadRepository;
 import com.peter.budget.repository.TransactionWriteRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,7 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +31,8 @@ public class TransactionService {
     private final TransactionReadRepository transactionReadRepository;
     private final TransactionWriteRepository transactionWriteRepository;
     private final AccountRepository accountRepository;
+    private final CategorizationRuleRepository categorizationRuleRepository;
+    private final AutoCategorizationService autoCategorizationService;
     private final CategoryViewService categoryViewService;
     private final TransferDetectionService transferDetectionService;
 
@@ -56,12 +61,79 @@ public class TransactionService {
         return toDto(tx, accountCache, categoryMap);
     }
 
+    public List<TransactionDto> getTransactionsForCategorizationRule(Long userId, Long ruleId, int limit, int offset) {
+        categorizationRuleRepository.findByIdAndUserId(ruleId, userId)
+                .orElseThrow(() -> ApiException.notFound("Categorization rule not found"));
+
+        List<Transaction> transactions = transactionReadRepository.findByUserIdAndCategorizationRuleId(
+                userId, ruleId, limit, offset);
+
+        Map<Long, Account> accountCache = new HashMap<>();
+        Map<Long, Category> categoryMap = categoryViewService.getEffectiveCategoryMapForUser(userId);
+
+        return transactions.stream()
+                .map(tx -> toDto(tx, accountCache, categoryMap))
+                .toList();
+    }
+
     public TransactionCoverageDto getTransactionCoverage(Long userId) {
         var stats = transactionReadRepository.getCoverageByUserId(userId);
         return TransactionCoverageDto.builder()
                 .totalTransactions(stats.totalCount())
                 .oldestPostedAt(stats.oldestPostedAt())
                 .newestPostedAt(stats.newestPostedAt())
+                .build();
+    }
+
+    @Transactional
+    public CategorizationRuleBackfillResultDto backfillCategorizationRules(Long userId) {
+        List<Transaction> transactions = transactionReadRepository.findByUserId(userId);
+
+        int eligible = 0;
+        int matched = 0;
+        int updated = 0;
+
+        for (Transaction tx : transactions) {
+            if (tx.isManuallyCategorized()) {
+                continue;
+            }
+            eligible++;
+
+            AutoCategorizationService.CategorizationMatch match = autoCategorizationService.categorize(
+                    userId, tx.getDescription(), tx.getPayee(), tx.getMemo());
+
+            if (match == null) {
+                if (tx.getCategorizedByRuleId() != null) {
+                    tx.setCategorizedByRuleId(null);
+                    transactionWriteRepository.save(tx);
+                    updated++;
+                }
+                continue;
+            }
+
+            matched++;
+
+            boolean changed = false;
+            if (!Objects.equals(tx.getCategoryId(), match.categoryId())) {
+                tx.setCategoryId(match.categoryId());
+                changed = true;
+            }
+            if (!Objects.equals(tx.getCategorizedByRuleId(), match.ruleId())) {
+                tx.setCategorizedByRuleId(match.ruleId());
+                changed = true;
+            }
+            if (changed) {
+                tx.setManuallyCategorized(false);
+                transactionWriteRepository.save(tx);
+                updated++;
+            }
+        }
+
+        return CategorizationRuleBackfillResultDto.builder()
+                .totalTransactions(transactions.size())
+                .eligibleTransactions(eligible)
+                .matchedTransactions(matched)
+                .updatedTransactions(updated)
                 .build();
     }
 
@@ -73,11 +145,13 @@ public class TransactionService {
         if (request.isCategoryIdProvided()) {
             if (request.getCategoryId() == null) {
                 tx.setCategoryId(null);
+                tx.setCategorizedByRuleId(null);
                 tx.setManuallyCategorized(false);
             } else {
                 categoryViewService.getEffectiveCategoryByIdForUser(userId, request.getCategoryId())
                         .orElseThrow(() -> ApiException.notFound("Category not found"));
                 tx.setCategoryId(request.getCategoryId());
+                tx.setCategorizedByRuleId(null);
                 tx.setManuallyCategorized(true);
             }
         }

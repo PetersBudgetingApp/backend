@@ -24,6 +24,7 @@ public class Transaction {
     private String payee;
     private String memo;
     private Long categoryId;
+    private Long categorizedByRuleId;
     private boolean manuallyCategorized;
     private Long transferPairId;
     private boolean internalTransfer;

@@ -28,11 +28,11 @@ public class TransactionWriteRepository {
     private Transaction insert(Transaction transaction) {
         String sql = """
             INSERT INTO transactions (account_id, external_id, posted_at, transacted_at, amount,
-                pending, description, payee, memo, category_id, is_manually_categorized,
+                pending, description, payee, memo, category_id, categorized_by_rule_id, is_manually_categorized,
                 transfer_pair_id, is_internal_transfer, exclude_from_totals,
                 is_recurring, recurring_pattern_id, notes, created_at, updated_at)
             VALUES (:accountId, :externalId, :postedAt, :transactedAt, :amount,
-                :pending, :description, :payee, :memo, :categoryId, :manuallyCategorized,
+                :pending, :description, :payee, :memo, :categoryId, :categorizedByRuleId, :manuallyCategorized,
                 :transferPairId, :internalTransfer, :excludeFromTotals,
                 :recurring, :recurringPatternId, :notes, :createdAt, :updatedAt)
             """;
@@ -57,7 +57,8 @@ public class TransactionWriteRepository {
             UPDATE transactions SET
                 posted_at = :postedAt, transacted_at = :transactedAt, amount = :amount,
                 pending = :pending, description = :description, payee = :payee, memo = :memo,
-                category_id = :categoryId, is_manually_categorized = :manuallyCategorized,
+                category_id = :categoryId, categorized_by_rule_id = :categorizedByRuleId,
+                is_manually_categorized = :manuallyCategorized,
                 transfer_pair_id = :transferPairId, is_internal_transfer = :internalTransfer,
                 exclude_from_totals = :excludeFromTotals,
                 is_recurring = :recurring, recurring_pattern_id = :recurringPatternId,
@@ -89,6 +90,7 @@ public class TransactionWriteRepository {
                 .addValue("payee", t.getPayee())
                 .addValue("memo", t.getMemo())
                 .addValue("categoryId", t.getCategoryId())
+                .addValue("categorizedByRuleId", t.getCategorizedByRuleId())
                 .addValue("manuallyCategorized", t.isManuallyCategorized())
                 .addValue("transferPairId", t.getTransferPairId())
                 .addValue("internalTransfer", t.isInternalTransfer())
@@ -141,6 +143,7 @@ public class TransactionWriteRepository {
             UPDATE transactions
             SET
                 category_id = NULL,
+                categorized_by_rule_id = NULL,
                 is_manually_categorized = false,
                 updated_at = :updatedAt
             WHERE

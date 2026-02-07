@@ -91,10 +91,14 @@ public class SimpleFinSyncSupport {
                 }
 
                 if (tx.getCategoryId() == null && !tx.isManuallyCategorized()) {
-                    Long categoryId = categorizationService.categorize(
+                    AutoCategorizationService.CategorizationMatch match = categorizationService.categorize(
                             account.getUserId(), sfTx.description(), sfTx.payee(), sfTx.memo());
-                    if (categoryId != null) {
-                        tx.setCategoryId(categoryId);
+                    if (match != null) {
+                        tx.setCategoryId(match.categoryId());
+                        tx.setCategorizedByRuleId(match.ruleId());
+                        changed = true;
+                    } else if (tx.getCategorizedByRuleId() != null) {
+                        tx.setCategorizedByRuleId(null);
                         changed = true;
                     }
                 }
@@ -116,10 +120,11 @@ public class SimpleFinSyncSupport {
                         .memo(sfTx.memo())
                         .build();
 
-                Long categoryId = categorizationService.categorize(
+                AutoCategorizationService.CategorizationMatch match = categorizationService.categorize(
                         account.getUserId(), sfTx.description(), sfTx.payee(), sfTx.memo());
-                if (categoryId != null) {
-                    tx.setCategoryId(categoryId);
+                if (match != null) {
+                    tx.setCategoryId(match.categoryId());
+                    tx.setCategorizedByRuleId(match.ruleId());
                     tx.setManuallyCategorized(false);
                 }
 
