@@ -132,7 +132,9 @@ All other `/api/v1/**` endpoints require auth.
 
 ## Error responses
 
-`ApiException` shape:
+All error responses use a consistent JSON shape. This includes application errors, authentication/authorization failures, and validation errors.
+
+`ApiException` shape (application errors):
 
 ```json
 {
@@ -142,7 +144,37 @@ All other `/api/v1/**` endpoints require auth.
 }
 ```
 
-Validation failures (`MethodArgumentNotValidException`) use:
+Unauthenticated requests (missing or invalid token):
+
+```json
+{
+  "status": 401,
+  "message": "Authentication required",
+  "timestamp": "2026-02-06T20:00:00Z"
+}
+```
+
+Access denied (valid token but insufficient permissions):
+
+```json
+{
+  "status": 403,
+  "message": "Access denied",
+  "timestamp": "2026-02-06T20:00:00Z"
+}
+```
+
+Invalid credentials (`POST /login` with wrong password):
+
+```json
+{
+  "status": 401,
+  "message": "Invalid email or password",
+  "timestamp": "2026-02-06T20:00:00Z"
+}
+```
+
+Validation failures (`MethodArgumentNotValidException`):
 
 ```json
 {

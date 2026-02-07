@@ -1,5 +1,7 @@
 package com.peter.budget.service;
 
+import com.peter.budget.exception.ApiException;
+import com.peter.budget.model.dto.AccountDto;
 import com.peter.budget.model.dto.AccountSummaryDto;
 import com.peter.budget.model.entity.Account;
 import com.peter.budget.model.enums.AccountType;
@@ -9,11 +11,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -26,6 +33,61 @@ class AccountServiceTest {
 
     @InjectMocks
     private AccountService accountService;
+
+    // --- getAccounts tests ---
+
+    @Test
+    void getAccountsReturnsActiveAccounts() {
+        when(accountRepository.findActiveByUserId(USER_ID)).thenReturn(List.of(
+                account(1L, AccountType.CHECKING, "500.00"),
+                account(2L, AccountType.SAVINGS, "1000.00")
+        ));
+
+        List<AccountDto> result = accountService.getAccounts(USER_ID);
+
+        assertEquals(2, result.size());
+        assertEquals("Account 1", result.get(0).getName());
+        assertEquals(AccountType.CHECKING, result.get(0).getAccountType());
+    }
+
+    @Test
+    void getAccountsReturnsEmptyListWhenNoAccounts() {
+        when(accountRepository.findActiveByUserId(USER_ID)).thenReturn(List.of());
+
+        List<AccountDto> result = accountService.getAccounts(USER_ID);
+
+        assertTrue(result.isEmpty());
+    }
+
+    // --- getAccount tests ---
+
+    @Test
+    void getAccountReturnsAccountById() {
+        Account acct = account(1L, AccountType.CHECKING, "500.00");
+        when(accountRepository.findByIdAndUserId(1L, USER_ID)).thenReturn(Optional.of(acct));
+
+        AccountDto result = accountService.getAccount(USER_ID, 1L);
+
+        assertNotNull(result);
+        assertEquals(1L, result.getId());
+        assertEquals(AccountType.CHECKING, result.getAccountType());
+        assertEquals(new BigDecimal("500.00"), result.getCurrentBalance());
+    }
+
+    @Test
+    void getAccountThrowsNotFoundWhenMissing() {
+        when(accountRepository.findByIdAndUserId(999L, USER_ID)).thenReturn(Optional.empty());
+
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> accountService.getAccount(USER_ID, 999L)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatus());
+        assertEquals("Account not found", exception.getMessage());
+    }
+
+    // --- getAccountSummary tests ---
 
     @Test
     void getAccountSummaryUsesSignedFallbackForOtherAccountTypes() {
@@ -54,6 +116,74 @@ class AccountServiceTest {
         assertEquals(BigDecimal.ZERO, summary.getTotalAssets());
         assertEquals(new BigDecimal("55.00"), summary.getTotalLiabilities());
         assertEquals(new BigDecimal("-55.00"), summary.getNetWorth());
+    }
+
+    @Test
+    void getAccountSummaryClassifiesAssetTypes() {
+        when(accountRepository.findActiveByUserId(USER_ID)).thenReturn(List.of(
+                account(1L, AccountType.CHECKING, "1000.00"),
+                account(2L, AccountType.SAVINGS, "5000.00"),
+                account(3L, AccountType.INVESTMENT, "20000.00")
+        ));
+
+        AccountSummaryDto summary = accountService.getAccountSummary(USER_ID);
+
+        assertEquals(new BigDecimal("26000.00"), summary.getTotalAssets());
+        assertEquals(BigDecimal.ZERO, summary.getTotalLiabilities());
+        assertEquals(new BigDecimal("26000.00"), summary.getNetWorth());
+    }
+
+    @Test
+    void getAccountSummaryClassifiesLiabilityTypes() {
+        when(accountRepository.findActiveByUserId(USER_ID)).thenReturn(List.of(
+                account(1L, AccountType.CREDIT_CARD, "2000.00"),
+                account(2L, AccountType.LOAN, "15000.00")
+        ));
+
+        AccountSummaryDto summary = accountService.getAccountSummary(USER_ID);
+
+        assertEquals(BigDecimal.ZERO, summary.getTotalAssets());
+        assertEquals(new BigDecimal("17000.00"), summary.getTotalLiabilities());
+        assertEquals(new BigDecimal("-17000.00"), summary.getNetWorth());
+    }
+
+    @Test
+    void getAccountSummaryHandlesNullBalance() {
+        Account acct = Account.builder()
+                .id(1L).userId(USER_ID).name("No Balance")
+                .accountType(AccountType.CHECKING).currency("USD")
+                .currentBalance(null).active(true).build();
+
+        when(accountRepository.findActiveByUserId(USER_ID)).thenReturn(List.of(acct));
+
+        AccountSummaryDto summary = accountService.getAccountSummary(USER_ID);
+
+        assertEquals(BigDecimal.ZERO, summary.getTotalAssets());
+        assertEquals(BigDecimal.ZERO, summary.getNetWorth());
+    }
+
+    @Test
+    void getAccountSummaryReturnsEmptyWhenNoAccounts() {
+        when(accountRepository.findActiveByUserId(USER_ID)).thenReturn(List.of());
+
+        AccountSummaryDto summary = accountService.getAccountSummary(USER_ID);
+
+        assertEquals(BigDecimal.ZERO, summary.getTotalAssets());
+        assertEquals(BigDecimal.ZERO, summary.getTotalLiabilities());
+        assertEquals(BigDecimal.ZERO, summary.getNetWorth());
+        assertTrue(summary.getAccounts().isEmpty());
+    }
+
+    @Test
+    void getAccountSummaryIncludesAccountDtos() {
+        when(accountRepository.findActiveByUserId(USER_ID)).thenReturn(List.of(
+                account(1L, AccountType.CHECKING, "500.00")
+        ));
+
+        AccountSummaryDto summary = accountService.getAccountSummary(USER_ID);
+
+        assertEquals(1, summary.getAccounts().size());
+        assertEquals(1L, summary.getAccounts().get(0).getId());
     }
 
     private Account account(Long id, AccountType type, String balance) {

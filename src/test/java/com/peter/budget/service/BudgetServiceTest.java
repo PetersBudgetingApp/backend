@@ -22,7 +22,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -130,5 +132,141 @@ class BudgetServiceTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
         verify(budgetTargetRepository, never()).replaceMonthTargets(eq(USER_ID), eq("2026-02"), anyList());
+    }
+
+    @Test
+    void upsertBudgetMonthRejectsDuplicateCategoryIds() {
+        when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID))
+                .thenReturn(Map.of(CATEGORY_ID, Category.builder()
+                        .id(CATEGORY_ID)
+                        .categoryType(CategoryType.EXPENSE)
+                        .build()));
+
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> budgetService.upsertBudgetMonth(
+                        USER_ID,
+                        "2026-02",
+                        BudgetMonthUpsertRequest.builder()
+                                .targets(List.of(
+                                        BudgetTargetUpsertRequest.builder()
+                                                .categoryId(CATEGORY_ID)
+                                                .targetAmount(new BigDecimal("500.00"))
+                                                .build(),
+                                        BudgetTargetUpsertRequest.builder()
+                                                .categoryId(CATEGORY_ID)
+                                                .targetAmount(new BigDecimal("300.00"))
+                                                .build()))
+                                .build()
+                )
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        assertTrue(exception.getMessage().contains("Duplicate categoryId"));
+    }
+
+    @Test
+    void upsertBudgetMonthRejectsUnknownCategory() {
+        when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID))
+                .thenReturn(Map.of());
+
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> budgetService.upsertBudgetMonth(
+                        USER_ID,
+                        "2026-02",
+                        BudgetMonthUpsertRequest.builder()
+                                .targets(List.of(BudgetTargetUpsertRequest.builder()
+                                        .categoryId(999L)
+                                        .targetAmount(new BigDecimal("500.00"))
+                                        .build()))
+                                .build()
+                )
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        assertTrue(exception.getMessage().contains("Category not found"));
+    }
+
+    @Test
+    void upsertBudgetMonthHandlesNullTargets() {
+        when(budgetTargetRepository.findByUserIdAndMonthKey(USER_ID, "2026-02"))
+                .thenReturn(List.of());
+
+        BudgetMonthDto result = budgetService.upsertBudgetMonth(
+                USER_ID,
+                "2026-02",
+                BudgetMonthUpsertRequest.builder().targets(null).build()
+        );
+
+        verify(budgetTargetRepository).replaceMonthTargets(eq(USER_ID), eq("2026-02"), eq(List.of()));
+        assertEquals("2026-02", result.getMonth());
+    }
+
+    @Test
+    void upsertBudgetMonthTrimsAndNormalizesNotes() {
+        when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID))
+                .thenReturn(Map.of(CATEGORY_ID, Category.builder()
+                        .id(CATEGORY_ID)
+                        .categoryType(CategoryType.EXPENSE)
+                        .build()));
+        when(budgetTargetRepository.findByUserIdAndMonthKey(USER_ID, "2026-02"))
+                .thenReturn(List.of());
+
+        budgetService.upsertBudgetMonth(
+                USER_ID,
+                "2026-02",
+                BudgetMonthUpsertRequest.builder()
+                        .targets(List.of(BudgetTargetUpsertRequest.builder()
+                                .categoryId(CATEGORY_ID)
+                                .targetAmount(new BigDecimal("100.00"))
+                                .notes("   ")
+                                .build()))
+                        .build()
+        );
+
+        verify(budgetTargetRepository).replaceMonthTargets(
+                eq(USER_ID),
+                eq("2026-02"),
+                targetsCaptor.capture()
+        );
+        assertNull(targetsCaptor.getValue().get(0).notes());
+    }
+
+    @Test
+    void getBudgetMonthRejectsBadMonthFormat() {
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> budgetService.getBudgetMonth(USER_ID, "not-a-month")
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+    }
+
+    @Test
+    void getBudgetMonthRejectsNullMonth() {
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> budgetService.getBudgetMonth(USER_ID, null)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+    }
+
+    @Test
+    void getBudgetMonthRejectsBlankMonth() {
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> budgetService.getBudgetMonth(USER_ID, "  ")
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+    }
+
+    @Test
+    void deleteTargetNormalizesMonth() {
+        budgetService.deleteTarget(USER_ID, "2026-02", CATEGORY_ID);
+
+        verify(budgetTargetRepository).deleteByUserIdAndMonthKeyAndCategoryId(USER_ID, "2026-02", CATEGORY_ID);
     }
 }

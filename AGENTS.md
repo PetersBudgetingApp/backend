@@ -56,6 +56,14 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 ## Error Contract
 - Domain/expected errors use `ApiException` and return:
   - `{ status, message, timestamp }`
+- Unauthenticated requests (missing/invalid token) return:
+  - `{ status: 401, message: "Authentication required", timestamp }`
+  - Handled by `config/SecurityErrorHandler.java` (`AuthenticationEntryPoint`)
+- Access denied (forbidden) returns:
+  - `{ status: 403, message: "Access denied", timestamp }`
+  - Handled by `config/SecurityErrorHandler.java` (`AccessDeniedHandler`)
+- Bad login credentials return:
+  - `{ status: 401, message: "Invalid email or password", timestamp }`
 - Validation errors (`MethodArgumentNotValidException`) return:
   - `{ status, message: "Validation failed", errors: { field: message }, timestamp }`
 - Unexpected exceptions return `500` with generic message.
@@ -350,8 +358,32 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 3. Preserve endpoint paths and response field names unless intentionally versioning API.
 4. When modifying service algorithms (sync/transfer/recurring), update AGENTS docs and tests in same change.
 
+## Test Coverage
+- 117 tests across 16 test classes (all passing).
+- Framework: JUnit 5 + Mockito, `@ExtendWith(MockitoExtension.class)`.
+- Coverage spans: Auth, Categories, Transactions, Analytics, Budgets, Accounts, Transfers, Recurring, CategoryView, CategorizationRules, AutoCategorization, JwtService, SecurityErrorHandler, GlobalExceptionHandler.
+- Test files under `src/test/java/com/peter/budget/`:
+  - `service/auth/AuthServiceTest.java` (15 tests)
+  - `service/auth/JwtServiceTest.java` (11 tests)
+  - `service/CategoryServiceTest.java` (13 tests)
+  - `service/BudgetServiceTest.java` (11 tests)
+  - `service/AccountServiceTest.java` (11 tests)
+  - `service/TransferDetectionServiceTest.java` (10 tests)
+  - `service/AnalyticsServiceTest.java` (9 tests)
+  - `service/TransactionServiceTest.java` (7 tests)
+  - `service/CategoryViewServiceTest.java` (7 tests)
+  - `service/RecurringDetectionServiceTest.java` (6 tests)
+  - `service/CategorizationRuleServiceTest.java` (2 tests)
+  - `service/AutoCategorizationServiceTest.java` (2 tests)
+  - `config/SecurityErrorHandlerTest.java` (2 tests)
+  - `exception/GlobalExceptionHandlerTest.java` (8 tests)
+  - `model/dto/TransactionUpdateRequestTest.java` (2 tests)
+  - `BudgetApplicationTests.java` (1 test)
+
 ## Known Functional Gaps
-- Test suite is minimal (mostly context-load), so service-level regression tests are still needed for high-safety refactors.
+- No integration tests (all tests are unit tests with mocked dependencies).
+- No controller-level `@WebMvcTest` tests (requests are tested indirectly through service layer).
+- SimpleFIN sync/backfill logic is not unit-tested (depends on external HTTP client).
 
 ## Notes Protocol (Required)
 When the user supplies a correction that resolves a real issue:
