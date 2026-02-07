@@ -313,6 +313,20 @@ public class TransactionRepository {
         return jdbcTemplate.queryForObject(sql.toString(), params, BigDecimal.class);
     }
 
+    public LocalDate findOldestPostedDateByConnectionId(Long connectionId) {
+        String sql = """
+            SELECT MIN(t.posted_at) FROM transactions t
+            JOIN accounts a ON t.account_id = a.id
+            WHERE a.connection_id = :connectionId
+            """;
+        var params = new MapSqlParameterSource("connectionId", connectionId);
+        Timestamp ts = jdbcTemplate.queryForObject(sql, params, Timestamp.class);
+        if (ts == null) {
+            return null;
+        }
+        return ts.toInstant().atZone(ZoneOffset.UTC).toLocalDate();
+    }
+
     public List<Object[]> sumByCategory(Long userId, LocalDate startDate, LocalDate endDate) {
         String sql = """
             SELECT t.category_id, COALESCE(SUM(ABS(t.amount)), 0) as total, COUNT(*) as count
@@ -337,4 +351,30 @@ public class TransactionRepository {
                 rs.getInt("count")
         });
     }
+
+    public TransactionCoverageStats getCoverageByUserId(Long userId) {
+        String sql = """
+            SELECT
+                COUNT(t.id) AS total_count,
+                MIN(t.posted_at) AS oldest_posted_at,
+                MAX(t.posted_at) AS newest_posted_at
+            FROM transactions t
+            JOIN accounts a ON t.account_id = a.id
+            WHERE a.user_id = :userId
+            """;
+
+        var params = new MapSqlParameterSource("userId", userId);
+
+        return jdbcTemplate.queryForObject(sql, params, (rs, rowNum) -> {
+            Timestamp oldest = rs.getTimestamp("oldest_posted_at");
+            Timestamp newest = rs.getTimestamp("newest_posted_at");
+            return new TransactionCoverageStats(
+                    rs.getLong("total_count"),
+                    oldest != null ? oldest.toInstant() : null,
+                    newest != null ? newest.toInstant() : null
+            );
+        });
+    }
+
+    public record TransactionCoverageStats(long totalCount, Instant oldestPostedAt, Instant newestPostedAt) {}
 }

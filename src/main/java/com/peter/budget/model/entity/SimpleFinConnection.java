@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Data
 @Builder
@@ -17,6 +18,8 @@ public class SimpleFinConnection {
     private Long userId;
     private String accessUrlEncrypted;
     private String institutionName;
+    private boolean initialSyncCompleted;
+    private LocalDate backfillCursorDate;
     private Instant lastSyncAt;
     private SyncStatus syncStatus;
     private String errorMessage;

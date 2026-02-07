@@ -2,6 +2,7 @@ package com.peter.budget.service;
 
 import com.peter.budget.exception.ApiException;
 import com.peter.budget.model.dto.CategoryDto;
+import com.peter.budget.model.dto.TransactionCoverageDto;
 import com.peter.budget.model.dto.TransactionDto;
 import com.peter.budget.model.dto.TransactionUpdateRequest;
 import com.peter.budget.model.dto.TransferPairDto;
@@ -52,6 +53,15 @@ public class TransactionService {
         Map<Long, Category> categoryCache = new HashMap<>();
 
         return toDto(tx, accountCache, categoryCache);
+    }
+
+    public TransactionCoverageDto getTransactionCoverage(Long userId) {
+        var stats = transactionRepository.getCoverageByUserId(userId);
+        return TransactionCoverageDto.builder()
+                .totalTransactions(stats.totalCount())
+                .oldestPostedAt(stats.oldestPostedAt())
+                .newestPostedAt(stats.newestPostedAt())
+                .build();
     }
 
     @Transactional

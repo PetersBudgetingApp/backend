@@ -10,6 +10,7 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 
+import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -29,6 +30,10 @@ public class SimpleFinConnectionRepository {
                 .userId(rs.getLong("user_id"))
                 .accessUrlEncrypted(rs.getString("access_url_encrypted"))
                 .institutionName(rs.getString("institution_name"))
+                .initialSyncCompleted(rs.getBoolean("initial_sync_completed"))
+                .backfillCursorDate(rs.getObject("backfill_cursor_date", Date.class) != null
+                        ? rs.getObject("backfill_cursor_date", Date.class).toLocalDate()
+                        : null)
                 .lastSyncAt(lastSync != null ? lastSync.toInstant() : null)
                 .syncStatus(SyncStatus.valueOf(rs.getString("sync_status")))
                 .errorMessage(rs.getString("error_message"))
@@ -85,9 +90,13 @@ public class SimpleFinConnectionRepository {
     private SimpleFinConnection insert(SimpleFinConnection connection) {
         String sql = """
             INSERT INTO simplefin_connections (user_id, access_url_encrypted, institution_name,
+                initial_sync_completed,
+                backfill_cursor_date,
                 last_sync_at, sync_status, error_message, requests_today, requests_reset_at,
                 created_at, updated_at)
             VALUES (:userId, :accessUrlEncrypted, :institutionName,
+                :initialSyncCompleted,
+                :backfillCursorDate,
                 :lastSyncAt, :syncStatus, :errorMessage, :requestsToday, :requestsResetAt,
                 :createdAt, :updatedAt)
             """;
@@ -111,6 +120,8 @@ public class SimpleFinConnectionRepository {
         String sql = """
             UPDATE simplefin_connections SET
                 access_url_encrypted = :accessUrlEncrypted, institution_name = :institutionName,
+                initial_sync_completed = :initialSyncCompleted,
+                backfill_cursor_date = :backfillCursorDate,
                 last_sync_at = :lastSyncAt, sync_status = :syncStatus, error_message = :errorMessage,
                 requests_today = :requestsToday, requests_reset_at = :requestsResetAt,
                 updated_at = :updatedAt
@@ -132,6 +143,9 @@ public class SimpleFinConnectionRepository {
                 .addValue("userId", c.getUserId())
                 .addValue("accessUrlEncrypted", c.getAccessUrlEncrypted())
                 .addValue("institutionName", c.getInstitutionName())
+                .addValue("initialSyncCompleted", c.isInitialSyncCompleted())
+                .addValue("backfillCursorDate", c.getBackfillCursorDate() != null ?
+                        Date.valueOf(c.getBackfillCursorDate()) : null)
                 .addValue("lastSyncAt", c.getLastSyncAt() != null ?
                         Timestamp.from(c.getLastSyncAt()) : null)
                 .addValue("syncStatus", c.getSyncStatus().name())

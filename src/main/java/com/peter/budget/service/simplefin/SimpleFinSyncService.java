@@ -22,7 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -30,8 +32,11 @@ import java.util.List;
 public class SimpleFinSyncService {
 
     private static final int MAX_DAILY_REQUESTS = 24;
-    private static final int INITIAL_SYNC_DAYS = 90;
+    // SimpleFIN date range is limited, so keep initial backfill at 60 days.
+    private static final int INITIAL_SYNC_DAYS = 60;
     private static final int OVERLAP_DAYS = 3;
+    private static final int EMPTY_BACKFILL_WINDOWS_TO_COMPLETE = 12;
+    private static final LocalDate HISTORY_CUTOFF_DATE = LocalDate.of(1970, 1, 1);
 
     private final SimpleFinClient simpleFinClient;
     private final SimpleFinConnectionRepository connectionRepository;
@@ -47,15 +52,19 @@ public class SimpleFinSyncService {
 
         var initialResponse = simpleFinClient.fetchAccounts(accessUrl);
 
-        String institutionName = null;
-        if (!initialResponse.accounts().isEmpty()) {
-            institutionName = initialResponse.accounts().get(0).institutionName();
-        }
+        String institutionName = summarizeInstitutionNames(
+                initialResponse.accounts().stream()
+                        .map(SimpleFinClient.SimpleFinAccount::institutionName)
+                        .toList(),
+                null
+        );
 
         SimpleFinConnection connection = SimpleFinConnection.builder()
                 .userId(userId)
                 .accessUrlEncrypted(encryptionService.encrypt(accessUrl))
                 .institutionName(institutionName)
+                .initialSyncCompleted(false)
+                .backfillCursorDate(null)
                 .syncStatus(SyncStatus.PENDING)
                 .requestsToday(1)
                 .requestsResetAt(Instant.now().plusSeconds(24 * 60 * 60))
@@ -67,7 +76,14 @@ public class SimpleFinSyncService {
             createOrUpdateAccount(userId, connection.getId(), sfAccount);
         }
 
+        connection.setInstitutionName(summarizeInstitutionNames(
+                accountRepository.findByConnectionId(connection.getId()).stream()
+                        .map(Account::getInstitutionName)
+                        .toList(),
+                connection.getInstitutionName()
+        ));
         connection.setSyncStatus(SyncStatus.SUCCESS);
+        // Keep this for UX freshness, while initialSyncCompleted=false ensures first real sync backfills history.
         connection.setLastSyncAt(Instant.now());
         connectionRepository.save(connection);
 
@@ -87,6 +103,11 @@ public class SimpleFinSyncService {
         SimpleFinConnection connection = connectionRepository.findByIdAndUserId(connectionId, userId)
                 .orElseThrow(() -> ApiException.notFound("Connection not found"));
 
+        // Defensive normalization for rows created before/while backfill cursor logic was rolled out.
+        if (connection.isInitialSyncCompleted() && connection.getBackfillCursorDate() != null) {
+            connection.setInitialSyncCompleted(false);
+        }
+
         if (!canMakeRequest(connection)) {
             throw ApiException.tooManyRequests("Daily request limit reached. Try again tomorrow.");
         }
@@ -97,17 +118,15 @@ public class SimpleFinSyncService {
         try {
             String accessUrl = encryptionService.decrypt(connection.getAccessUrlEncrypted());
 
-            LocalDate startDate = calculateStartDate(connection);
-            LocalDate endDate = LocalDate.now();
-
-            var response = simpleFinClient.fetchAccounts(accessUrl, startDate, endDate);
-
-            connectionRepository.incrementRequestCount(connectionId);
+            LocalDate incrementalStartDate = calculateStartDate(connection);
+            LocalDate incrementalEndDate = LocalDate.now();
 
             int accountsSynced = 0;
             int transactionsAdded = 0;
             int transactionsUpdated = 0;
 
+            consumeRequestQuota(connection, connectionId);
+            var response = simpleFinClient.fetchAccounts(accessUrl, incrementalStartDate, incrementalEndDate);
             for (var sfAccount : response.accounts()) {
                 Account account = createOrUpdateAccount(userId, connectionId, sfAccount);
                 accountsSynced++;
@@ -117,8 +136,64 @@ public class SimpleFinSyncService {
                 transactionsUpdated += result.updated();
             }
 
+            if (!connection.isInitialSyncCompleted()) {
+                LocalDate cursor = connection.getBackfillCursorDate();
+                int emptyBackfillWindows = 0;
+                if (cursor == null) {
+                    LocalDate oldestSyncedDate = transactionRepository.findOldestPostedDateByConnectionId(connectionId);
+                    cursor = oldestSyncedDate != null ? oldestSyncedDate : incrementalStartDate;
+                }
+
+                while (cursor.isAfter(HISTORY_CUTOFF_DATE) && canMakeRequest(connection)) {
+                    LocalDate windowEnd = cursor;
+                    LocalDate windowStart = windowEnd.minusDays(INITIAL_SYNC_DAYS);
+                    int transactionsInWindow = 0;
+
+                    consumeRequestQuota(connection, connectionId);
+                    var historicalResponse = simpleFinClient.fetchAccounts(accessUrl, windowStart, windowEnd);
+
+                    for (var sfAccount : historicalResponse.accounts()) {
+                        transactionsInWindow += sfAccount.transactions().size();
+                        Account account = createOrUpdateAccount(userId, connectionId, sfAccount);
+                        accountsSynced++;
+
+                        var result = syncTransactions(account, sfAccount.transactions());
+                        transactionsAdded += result.added();
+                        transactionsUpdated += result.updated();
+                    }
+
+                    cursor = windowStart;
+
+                    if (transactionsInWindow == 0) {
+                        emptyBackfillWindows++;
+                        if (emptyBackfillWindows >= EMPTY_BACKFILL_WINDOWS_TO_COMPLETE) {
+                            connection.setInitialSyncCompleted(true);
+                            connection.setBackfillCursorDate(null);
+                            break;
+                        }
+                    } else {
+                        emptyBackfillWindows = 0;
+                    }
+                }
+
+                if (connection.isInitialSyncCompleted()) {
+                    // completion state already set in-loop; keep it stable.
+                } else if (!cursor.isAfter(HISTORY_CUTOFF_DATE)) {
+                    connection.setInitialSyncCompleted(true);
+                    connection.setBackfillCursorDate(null);
+                } else {
+                    connection.setBackfillCursorDate(cursor);
+                }
+            }
+
             int transfersDetected = transferDetectionService.detectTransfers(userId);
 
+            connection.setInstitutionName(summarizeInstitutionNames(
+                    accountRepository.findByConnectionId(connection.getId()).stream()
+                            .map(Account::getInstitutionName)
+                            .toList(),
+                    connection.getInstitutionName()
+            ));
             connection.setSyncStatus(SyncStatus.SUCCESS);
             connection.setLastSyncAt(Instant.now());
             connection.setErrorMessage(null);
@@ -126,7 +201,9 @@ public class SimpleFinSyncService {
 
             return SyncResultDto.builder()
                     .success(true)
-                    .message("Sync completed successfully")
+                    .message(connection.isInitialSyncCompleted()
+                            ? "Sync completed successfully"
+                            : "Sync completed. Historical backfill is still in progress.")
                     .accountsSynced(accountsSynced)
                     .transactionsAdded(transactionsAdded)
                     .transactionsUpdated(transactionsUpdated)
@@ -156,10 +233,15 @@ public class SimpleFinSyncService {
     public List<ConnectionDto> getConnections(Long userId) {
         return connectionRepository.findByUserId(userId).stream()
                 .map(conn -> {
-                    int accountCount = accountRepository.countByConnectionId(conn.getId());
+                    List<Account> accounts = accountRepository.findByConnectionId(conn.getId());
+                    int accountCount = accounts.size();
+                    String institutionName = summarizeInstitutionNames(
+                            accounts.stream().map(Account::getInstitutionName).toList(),
+                            conn.getInstitutionName()
+                    );
                     return ConnectionDto.builder()
                             .id(conn.getId())
-                            .institutionName(conn.getInstitutionName())
+                            .institutionName(institutionName)
                             .lastSyncAt(conn.getLastSyncAt())
                             .syncStatus(conn.getSyncStatus())
                             .errorMessage(conn.getErrorMessage())
@@ -194,6 +276,47 @@ public class SimpleFinSyncService {
                 .atZone(ZoneOffset.UTC)
                 .toLocalDate()
                 .minusDays(OVERLAP_DAYS);
+    }
+
+    private void consumeRequestQuota(SimpleFinConnection connection, Long connectionId) {
+        if (!canMakeRequest(connection)) {
+            throw ApiException.tooManyRequests("Daily request limit reached. Try again tomorrow.");
+        }
+
+        connectionRepository.incrementRequestCount(connectionId);
+
+        Instant now = Instant.now();
+        if (connection.getRequestsResetAt() == null || connection.getRequestsResetAt().isBefore(now)) {
+            connection.setRequestsToday(1);
+            connection.setRequestsResetAt(now.plusSeconds(24 * 60 * 60));
+            return;
+        }
+
+        connection.setRequestsToday(connection.getRequestsToday() + 1);
+    }
+
+    private String summarizeInstitutionNames(List<String> names, String fallback) {
+        Set<String> unique = new LinkedHashSet<>();
+        for (String name : names) {
+            if (name != null && !name.isBlank()) {
+                unique.add(name.trim());
+            }
+        }
+
+        if (unique.isEmpty()) {
+            if (fallback != null && !fallback.isBlank()) {
+                return fallback;
+            }
+            return "Unknown institution";
+        }
+
+        if (unique.size() == 1) {
+            return unique.iterator().next();
+        }
+
+        String first = unique.iterator().next();
+        int remaining = unique.size() - 1;
+        return first + " + " + remaining + " other" + (remaining == 1 ? "" : "s");
     }
 
     private Account createOrUpdateAccount(Long userId, Long connectionId,

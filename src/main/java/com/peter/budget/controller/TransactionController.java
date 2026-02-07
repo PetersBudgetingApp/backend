@@ -2,6 +2,7 @@ package com.peter.budget.controller;
 
 import com.peter.budget.config.JwtAuthFilter;
 import com.peter.budget.model.dto.TransactionDto;
+import com.peter.budget.model.dto.TransactionCoverageDto;
 import com.peter.budget.model.dto.TransactionUpdateRequest;
 import com.peter.budget.model.dto.TransferPairDto;
 import com.peter.budget.service.TransactionService;
@@ -35,6 +36,13 @@ public class TransactionController {
         List<TransactionDto> transactions = transactionService.getTransactions(
                 principal.userId(), includeTransfers, startDate, endDate, categoryId, accountId, limit, offset);
         return ResponseEntity.ok(transactions);
+    }
+
+    @GetMapping("/coverage")
+    public ResponseEntity<TransactionCoverageDto> getTransactionCoverage(
+            @AuthenticationPrincipal JwtAuthFilter.UserPrincipal principal) {
+        TransactionCoverageDto coverage = transactionService.getTransactionCoverage(principal.userId());
+        return ResponseEntity.ok(coverage);
     }
 
     @GetMapping("/{id}")
