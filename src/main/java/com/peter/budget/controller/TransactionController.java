@@ -1,6 +1,9 @@
 package com.peter.budget.controller;
 
 import com.peter.budget.config.JwtAuthFilter;
+import com.peter.budget.model.dto.ErrorResponse;
+import com.peter.budget.model.dto.MarkTransferRequest;
+import com.peter.budget.model.dto.MessageResponse;
 import com.peter.budget.model.dto.TransactionDto;
 import com.peter.budget.model.dto.TransactionCoverageDto;
 import com.peter.budget.model.dto.TransactionUpdateRequest;
@@ -14,7 +17,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/transactions")
@@ -70,23 +72,23 @@ public class TransactionController {
     }
 
     @PostMapping("/{id}/mark-as-transfer")
-    public ResponseEntity<Map<String, String>> markAsTransfer(
+    public ResponseEntity<?> markAsTransfer(
             @AuthenticationPrincipal JwtAuthFilter.UserPrincipal principal,
             @PathVariable Long id,
-            @RequestBody Map<String, Long> request) {
-        Long pairTransactionId = request.get("pairTransactionId");
+            @RequestBody MarkTransferRequest request) {
+        Long pairTransactionId = request.getPairTransactionId();
         if (pairTransactionId == null) {
-            return ResponseEntity.badRequest().body(Map.of("error", "pairTransactionId is required"));
+            return ResponseEntity.badRequest().body(ErrorResponse.builder().error("pairTransactionId is required").build());
         }
         transactionService.markAsTransfer(principal.userId(), id, pairTransactionId);
-        return ResponseEntity.ok(Map.of("message", "Transactions linked as transfer pair"));
+        return ResponseEntity.ok(MessageResponse.builder().message("Transactions linked as transfer pair").build());
     }
 
     @PostMapping("/{id}/unlink-transfer")
-    public ResponseEntity<Map<String, String>> unlinkTransfer(
+    public ResponseEntity<MessageResponse> unlinkTransfer(
             @AuthenticationPrincipal JwtAuthFilter.UserPrincipal principal,
             @PathVariable Long id) {
         transactionService.unlinkTransfer(principal.userId(), id);
-        return ResponseEntity.ok(Map.of("message", "Transfer pair unlinked"));
+        return ResponseEntity.ok(MessageResponse.builder().message("Transfer pair unlinked").build());
     }
 }

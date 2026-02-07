@@ -11,7 +11,8 @@ import com.peter.budget.model.entity.Category;
 import com.peter.budget.model.entity.Transaction;
 import com.peter.budget.repository.AccountRepository;
 import com.peter.budget.repository.CategoryRepository;
-import com.peter.budget.repository.TransactionRepository;
+import com.peter.budget.repository.TransactionReadRepository;
+import com.peter.budget.repository.TransactionWriteRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,7 +26,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class TransactionService {
 
-    private final TransactionRepository transactionRepository;
+    private final TransactionReadRepository transactionReadRepository;
+    private final TransactionWriteRepository transactionWriteRepository;
     private final AccountRepository accountRepository;
     private final CategoryRepository categoryRepository;
     private final TransferDetectionService transferDetectionService;
@@ -34,7 +36,7 @@ public class TransactionService {
                                                   LocalDate startDate, LocalDate endDate,
                                                   Long categoryId, Long accountId,
                                                   int limit, int offset) {
-        List<Transaction> transactions = transactionRepository.findByUserIdWithFilters(
+        List<Transaction> transactions = transactionReadRepository.findByUserIdWithFilters(
                 userId, includeTransfers, startDate, endDate, categoryId, accountId, limit, offset);
 
         Map<Long, Account> accountCache = new HashMap<>();
@@ -46,7 +48,7 @@ public class TransactionService {
     }
 
     public TransactionDto getTransaction(Long userId, Long transactionId) {
-        Transaction tx = transactionRepository.findByIdAndUserId(transactionId, userId)
+        Transaction tx = transactionReadRepository.findByIdAndUserId(transactionId, userId)
                 .orElseThrow(() -> ApiException.notFound("Transaction not found"));
 
         Map<Long, Account> accountCache = new HashMap<>();
@@ -56,7 +58,7 @@ public class TransactionService {
     }
 
     public TransactionCoverageDto getTransactionCoverage(Long userId) {
-        var stats = transactionRepository.getCoverageByUserId(userId);
+        var stats = transactionReadRepository.getCoverageByUserId(userId);
         return TransactionCoverageDto.builder()
                 .totalTransactions(stats.totalCount())
                 .oldestPostedAt(stats.oldestPostedAt())
@@ -66,14 +68,19 @@ public class TransactionService {
 
     @Transactional
     public TransactionDto updateTransaction(Long userId, Long transactionId, TransactionUpdateRequest request) {
-        Transaction tx = transactionRepository.findByIdAndUserId(transactionId, userId)
+        Transaction tx = transactionReadRepository.findByIdAndUserId(transactionId, userId)
                 .orElseThrow(() -> ApiException.notFound("Transaction not found"));
 
-        if (request.getCategoryId() != null) {
-            categoryRepository.findByIdForUser(request.getCategoryId(), userId)
-                    .orElseThrow(() -> ApiException.notFound("Category not found"));
-            tx.setCategoryId(request.getCategoryId());
-            tx.setManuallyCategorized(true);
+        if (request.isCategoryIdProvided()) {
+            if (request.getCategoryId() == null) {
+                tx.setCategoryId(null);
+                tx.setManuallyCategorized(false);
+            } else {
+                categoryRepository.findByIdForUser(request.getCategoryId(), userId)
+                        .orElseThrow(() -> ApiException.notFound("Category not found"));
+                tx.setCategoryId(request.getCategoryId());
+                tx.setManuallyCategorized(true);
+            }
         }
 
         if (request.getNotes() != null) {
@@ -84,7 +91,7 @@ public class TransactionService {
             tx.setExcludeFromTotals(request.getExcludeFromTotals());
         }
 
-        tx = transactionRepository.save(tx);
+        tx = transactionWriteRepository.save(tx);
 
         Map<Long, Account> accountCache = new HashMap<>();
         Map<Long, Category> categoryCache = new HashMap<>();
@@ -122,7 +129,7 @@ public class TransactionService {
 
         String transferPairAccountName = null;
         if (tx.getTransferPairId() != null) {
-            Transaction pairTx = transactionRepository.findById(tx.getTransferPairId()).orElse(null);
+            Transaction pairTx = transactionReadRepository.findById(tx.getTransferPairId()).orElse(null);
             if (pairTx != null) {
                 Account pairAccount = accountCache.computeIfAbsent(
                         pairTx.getAccountId(),

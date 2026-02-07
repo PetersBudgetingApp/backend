@@ -1,7 +1,9 @@
 package com.peter.budget.controller;
 
 import com.peter.budget.config.JwtAuthFilter;
+import com.peter.budget.model.dto.RecurringDetectionResponse;
 import com.peter.budget.model.dto.RecurringPatternDto;
+import com.peter.budget.model.dto.ToggleRecurringActiveRequest;
 import com.peter.budget.model.dto.UpcomingBillDto;
 import com.peter.budget.service.RecurringDetectionService;
 import lombok.RequiredArgsConstructor;
@@ -10,7 +12,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/recurring")
@@ -27,13 +28,13 @@ public class RecurringController {
     }
 
     @PostMapping("/detect")
-    public ResponseEntity<Map<String, Object>> detectPatterns(
+    public ResponseEntity<RecurringDetectionResponse> detectPatterns(
             @AuthenticationPrincipal JwtAuthFilter.UserPrincipal principal) {
         int detected = recurringService.detectRecurringPatterns(principal.userId());
-        return ResponseEntity.ok(Map.of(
-                "patternsDetected", detected,
-                "message", detected + " recurring patterns detected"
-        ));
+        return ResponseEntity.ok(RecurringDetectionResponse.builder()
+                .patternsDetected(detected)
+                .message(detected + " recurring patterns detected")
+                .build());
     }
 
     @GetMapping("/upcoming")
@@ -57,8 +58,8 @@ public class RecurringController {
     public ResponseEntity<RecurringPatternDto> togglePatternActive(
             @AuthenticationPrincipal JwtAuthFilter.UserPrincipal principal,
             @PathVariable Long id,
-            @RequestBody Map<String, Boolean> request) {
-        boolean active = request.getOrDefault("active", true);
+            @RequestBody ToggleRecurringActiveRequest request) {
+        boolean active = request.getActive() == null || request.getActive();
         RecurringPatternDto pattern = recurringService.togglePatternActive(principal.userId(), id, active);
         return ResponseEntity.ok(pattern);
     }

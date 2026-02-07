@@ -5,7 +5,7 @@ import com.peter.budget.model.dto.SpendingByCategoryDto;
 import com.peter.budget.model.dto.TrendDto;
 import com.peter.budget.model.entity.Category;
 import com.peter.budget.repository.CategoryRepository;
-import com.peter.budget.repository.TransactionRepository;
+import com.peter.budget.repository.TransactionAnalyticsRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AnalyticsService {
 
-    private final TransactionRepository transactionRepository;
+    private final TransactionAnalyticsRepository transactionAnalyticsRepository;
     private final CategoryRepository categoryRepository;
 
     public SpendingByCategoryDto getSpendingByCategory(Long userId, LocalDate startDate, LocalDate endDate) {
@@ -34,21 +34,22 @@ public class AnalyticsService {
             endDate = LocalDate.now();
         }
 
-        List<Object[]> results = transactionRepository.sumByCategory(userId, startDate, endDate);
+        List<TransactionAnalyticsRepository.CategorySpendingProjection> results =
+                transactionAnalyticsRepository.sumByCategory(userId, startDate, endDate);
 
         Map<Long, Category> categoryMap = categoryRepository.findByUserId(userId).stream()
                 .collect(Collectors.toMap(Category::getId, Function.identity()));
 
         BigDecimal totalSpending = results.stream()
-                .map(row -> (BigDecimal) row[1])
+                .map(TransactionAnalyticsRepository.CategorySpendingProjection::totalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         List<SpendingByCategoryDto.CategorySpending> categories = new ArrayList<>();
 
-        for (Object[] row : results) {
-            Long categoryId = (Long) row[0];
-            BigDecimal amount = (BigDecimal) row[1];
-            int count = (int) row[2];
+        for (TransactionAnalyticsRepository.CategorySpendingProjection row : results) {
+            Long categoryId = row.categoryId();
+            BigDecimal amount = row.totalAmount();
+            int count = row.transactionCount();
 
             Category category = categoryId != null ? categoryMap.get(categoryId) : null;
             String categoryName = category != null ? category.getName() : "Uncategorized";
@@ -85,15 +86,15 @@ public class AnalyticsService {
             LocalDate startDate = month.atDay(1);
             LocalDate endDate = month.atEndOfMonth();
 
-            BigDecimal income = transactionRepository.sumByUserIdAndDateRangeAndType(
+            BigDecimal income = transactionAnalyticsRepository.sumByUserIdAndDateRangeAndType(
                     userId, startDate, endDate, true, true);
 
-            BigDecimal expenses = transactionRepository.sumByUserIdAndDateRangeAndType(
+            BigDecimal expenses = transactionAnalyticsRepository.sumByUserIdAndDateRangeAndType(
                     userId, startDate, endDate, false, true).abs();
 
-            BigDecimal transfers = transactionRepository.sumByUserIdAndDateRangeAndType(
+            BigDecimal transfers = transactionAnalyticsRepository.sumByUserIdAndDateRangeAndType(
                     userId, startDate, endDate, false, false)
-                    .subtract(transactionRepository.sumByUserIdAndDateRangeAndType(
+                    .subtract(transactionAnalyticsRepository.sumByUserIdAndDateRangeAndType(
                             userId, startDate, endDate, false, true)).abs();
 
             BigDecimal netCashFlow = income.subtract(expenses);
@@ -120,13 +121,13 @@ public class AnalyticsService {
             endDate = LocalDate.now();
         }
 
-        BigDecimal totalIncome = transactionRepository.sumByUserIdAndDateRangeAndType(
+        BigDecimal totalIncome = transactionAnalyticsRepository.sumByUserIdAndDateRangeAndType(
                 userId, startDate, endDate, true, true);
 
-        BigDecimal totalExpenses = transactionRepository.sumByUserIdAndDateRangeAndType(
+        BigDecimal totalExpenses = transactionAnalyticsRepository.sumByUserIdAndDateRangeAndType(
                 userId, startDate, endDate, false, true).abs();
 
-        BigDecimal allNegative = transactionRepository.sumByUserIdAndDateRangeAndType(
+        BigDecimal allNegative = transactionAnalyticsRepository.sumByUserIdAndDateRangeAndType(
                 userId, startDate, endDate, false, false).abs();
         BigDecimal totalTransfers = allNegative.subtract(totalExpenses);
 

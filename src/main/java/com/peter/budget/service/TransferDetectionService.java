@@ -7,7 +7,8 @@ import com.peter.budget.model.entity.Transaction;
 import com.peter.budget.model.enums.AccountType;
 import com.peter.budget.repository.AccountRepository;
 import com.peter.budget.repository.CategoryRepository;
-import com.peter.budget.repository.TransactionRepository;
+import com.peter.budget.repository.TransactionReadRepository;
+import com.peter.budget.repository.TransactionWriteRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,13 +33,14 @@ public class TransferDetectionService {
             Pattern.CASE_INSENSITIVE
     );
 
-    private final TransactionRepository transactionRepository;
+    private final TransactionReadRepository transactionReadRepository;
+    private final TransactionWriteRepository transactionWriteRepository;
     private final AccountRepository accountRepository;
     private final CategoryRepository categoryRepository;
 
     @Transactional
     public int detectTransfers(Long userId) {
-        List<Transaction> unpairedTransactions = transactionRepository.findUnpairedByUserId(userId);
+        List<Transaction> unpairedTransactions = transactionReadRepository.findUnpairedByUserId(userId);
         Map<Long, Account> accountCache = new HashMap<>();
 
         int transfersDetected = 0;
@@ -59,7 +61,7 @@ public class TransferDetectionService {
             Instant startDate = tx.getPostedAt().minus(Duration.ofDays(TRANSFER_WINDOW_DAYS));
             Instant endDate = tx.getPostedAt().plus(Duration.ofDays(TRANSFER_WINDOW_DAYS));
 
-            List<Transaction> candidates = transactionRepository.findPotentialTransferMatches(
+            List<Transaction> candidates = transactionReadRepository.findPotentialTransferMatches(
                     userId, tx.getAccountId(), oppositeAmount, startDate, endDate);
 
             TransferCandidate bestMatch = null;
@@ -138,16 +140,16 @@ public class TransferDetectionService {
 
     @Transactional
     public void linkAsTransfer(Transaction tx1, Transaction tx2) {
-        transactionRepository.linkTransferPair(tx1.getId(), tx2.getId());
+        transactionWriteRepository.linkTransferPair(tx1.getId(), tx2.getId());
 
         categoryRepository.findTransferCategory().ifPresent(transferCategory -> {
             if (!tx1.isManuallyCategorized()) {
                 tx1.setCategoryId(transferCategory.getId());
-                transactionRepository.save(tx1);
+                transactionWriteRepository.save(tx1);
             }
             if (!tx2.isManuallyCategorized()) {
                 tx2.setCategoryId(transferCategory.getId());
-                transactionRepository.save(tx2);
+                transactionWriteRepository.save(tx2);
             }
         });
     }
@@ -158,9 +160,9 @@ public class TransferDetectionService {
             throw ApiException.badRequest("Cannot create transfer pair from the same transaction");
         }
 
-        Transaction tx1 = transactionRepository.findByIdAndUserId(transactionId1, userId)
+        Transaction tx1 = transactionReadRepository.findByIdAndUserId(transactionId1, userId)
                 .orElseThrow(() -> ApiException.notFound("Transaction not found"));
-        Transaction tx2 = transactionRepository.findByIdAndUserId(transactionId2, userId)
+        Transaction tx2 = transactionReadRepository.findByIdAndUserId(transactionId2, userId)
                 .orElseThrow(() -> ApiException.notFound("Transaction not found"));
 
         if (tx1.getAccountId().equals(tx2.getAccountId())) {
@@ -176,18 +178,18 @@ public class TransferDetectionService {
 
     @Transactional
     public void unlinkTransfer(Long userId, Long transactionId) {
-        Transaction tx = transactionRepository.findByIdAndUserId(transactionId, userId)
+        Transaction tx = transactionReadRepository.findByIdAndUserId(transactionId, userId)
                 .orElseThrow(() -> ApiException.notFound("Transaction not found"));
 
         if (tx.getTransferPairId() == null) {
             throw ApiException.badRequest("Transaction is not part of a transfer pair");
         }
 
-        transactionRepository.unlinkTransferPair(transactionId);
+        transactionWriteRepository.unlinkTransferPair(transactionId);
     }
 
     public List<TransferPairDto> getTransferPairs(Long userId) {
-        List<Transaction> transfers = transactionRepository.findTransfersByUserId(userId);
+        List<Transaction> transfers = transactionReadRepository.findTransfersByUserId(userId);
         Map<Long, Account> accountCache = new HashMap<>();
         Set<Long> processedPairs = new HashSet<>();
         List<TransferPairDto> pairs = new ArrayList<>();
@@ -197,7 +199,7 @@ public class TransferDetectionService {
                 continue;
             }
 
-            Transaction pairTx = transactionRepository.findById(tx.getTransferPairId()).orElse(null);
+            Transaction pairTx = transactionReadRepository.findById(tx.getTransferPairId()).orElse(null);
             if (pairTx == null) continue;
 
             processedPairs.add(tx.getId());
