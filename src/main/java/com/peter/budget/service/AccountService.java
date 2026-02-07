@@ -32,13 +32,29 @@ public class AccountService {
 
     public AccountSummaryDto getAccountSummary(Long userId) {
         List<Account> accounts = accountRepository.findActiveByUserId(userId);
+        BigDecimal totalAssets = BigDecimal.ZERO;
+        BigDecimal totalLiabilities = BigDecimal.ZERO;
 
-        BigDecimal totalAssets = accountRepository.sumBalancesByUserIdAndAccountTypes(
-                userId, List.of(AccountType.CHECKING, AccountType.SAVINGS, AccountType.INVESTMENT));
+        for (Account account : accounts) {
+            BigDecimal balance = account.getCurrentBalance() != null ? account.getCurrentBalance() : BigDecimal.ZERO;
 
-        BigDecimal totalLiabilities = accountRepository.sumBalancesByUserIdAndAccountTypes(
-                userId, List.of(AccountType.CREDIT_CARD, AccountType.LOAN))
-                .abs();
+            if (isLiabilityType(account.getAccountType())) {
+                totalLiabilities = totalLiabilities.add(balance.abs());
+                continue;
+            }
+
+            if (isAssetType(account.getAccountType())) {
+                totalAssets = totalAssets.add(balance);
+                continue;
+            }
+
+            // Fallback for unmapped/unknown account types.
+            if (balance.signum() >= 0) {
+                totalAssets = totalAssets.add(balance);
+            } else {
+                totalLiabilities = totalLiabilities.add(balance.abs());
+            }
+        }
 
         BigDecimal netWorth = totalAssets.subtract(totalLiabilities);
 
@@ -52,6 +68,17 @@ public class AccountService {
                 .netWorth(netWorth)
                 .accounts(accountDtos)
                 .build();
+    }
+
+    private boolean isAssetType(AccountType accountType) {
+        return accountType == AccountType.CHECKING
+                || accountType == AccountType.SAVINGS
+                || accountType == AccountType.INVESTMENT;
+    }
+
+    private boolean isLiabilityType(AccountType accountType) {
+        return accountType == AccountType.CREDIT_CARD
+                || accountType == AccountType.LOAN;
     }
 
     private AccountDto toDto(Account account) {
