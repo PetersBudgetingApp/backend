@@ -28,6 +28,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - Uses `DATABASE_USERNAME`, `DATABASE_PASSWORD`
 - H2 console disabled
 - Stable local JWT/encryption secrets can be provided via env vars
+- Startup categorization backfill enabled (`app.categorization.backfill-on-startup=true`)
 
 ### Prod profile (`application-prod.properties`)
 - DB from env vars only
@@ -166,6 +167,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
   - `CategoryController.updateCategory` -> `CategoryService.updateCategory`
 - `DELETE /api/v1/categories/{id}`
   - `CategoryController.deleteCategory` -> `CategoryService.deleteCategory`
+  - Clears category links from matching user transactions/recurring patterns/rules for the deleted category tree before delete/hide.
 
 ### Categorization Rules
 - `GET /api/v1/categorization-rules`
@@ -173,6 +175,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - `POST /api/v1/categorization-rules`
   - request DTO: `CategorizationRuleUpsertRequest`
   - `CategorizationRuleController.createRule` -> `CategorizationRuleService.createRule`
+  - On create, backend immediately triggers `TransactionService.backfillCategorizationRules` so existing eligible transactions are re-evaluated.
 - `PUT /api/v1/categorization-rules/{id}`
   - request DTO: `CategorizationRuleUpsertRequest`
   - `CategorizationRuleController.updateRule` -> `CategorizationRuleService.updateRule`
@@ -216,6 +219,12 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 3. Refresh endpoint revokes existing refresh token and issues a new pair.
 4. Logout revokes specific refresh token if provided, otherwise all for user.
 
+### Categorization rule tracking backfill lifecycle
+1. `categorized_by_rule_id` is stored when auto-categorization matches a rule.
+2. Auto-categorization ignores rules whose target category is hidden for that user.
+3. On local/Docker startup, app can backfill existing transactions per user (`app.categorization.backfill-on-startup`).
+4. Manual trigger also exists at `POST /api/v1/categorization-rules/backfill`.
+
 ### SimpleFIN setup lifecycle
 1. Setup token is Base64 URL-decoded into claim URL.
 2. Claim URL is validated to be HTTPS and under `simplefin.org` host.
@@ -228,7 +237,8 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 1. Resolve connection and check request quota policy.
 2. Run incremental sync window (`calculateStartDate` with overlap).
 3. Upsert accounts and transactions.
-   - Auto-categorized transactions also persist `categorized_by_rule_id` for rule-level traceability.
+   - Auto-categorized transactions persist `categorized_by_rule_id` for rule-level traceability.
+   - Rules targeting hidden categories are skipped.
 4. If initial history not complete, run backfill windows backward in time.
 5. Backfill completion rules:
    - cutoff date reached (`1970-01-01`), or

@@ -97,14 +97,9 @@ public class CategoryService {
         Category category = categoryViewService.getEffectiveCategoryByIdForUser(userId, categoryId)
                 .orElseThrow(() -> ApiException.notFound("Category not found"));
 
-        if (!category.isSystem()) {
-            categoryRepository.deleteById(categoryId);
-            return;
-        }
-
         List<Category> allCategories = categoryViewService.getEffectiveCategoriesForUser(userId);
-        List<Category> categoryTree = collectCategoryTree(categoryId, allCategories);
-        hideSystemCategoryTreeForUser(userId, categoryTree);
+        List<Category> categoryTree = collectCategoryTree(category.getId(), allCategories);
+        removeCategoryTreeForUser(userId, categoryTree);
     }
 
     private CategoryDto updateSystemCategory(Long userId, Category category, CategoryCreateRequest request) {
@@ -136,7 +131,7 @@ public class CategoryService {
         return toDto(updatedCategory);
     }
 
-    private void hideSystemCategoryTreeForUser(Long userId, List<Category> categoriesToRemove) {
+    private void removeCategoryTreeForUser(Long userId, List<Category> categoriesToRemove) {
         List<Long> categoryIds = categoriesToRemove.stream()
                 .map(Category::getId)
                 .toList();

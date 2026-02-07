@@ -9,8 +9,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -18,11 +20,18 @@ import java.util.regex.PatternSyntaxException;
 public class AutoCategorizationService {
 
     private final CategorizationRuleRepository ruleRepository;
+    private final CategoryViewService categoryViewService;
 
     public CategorizationMatch categorize(Long userId, String description, String payee, String memo) {
         List<CategorizationRule> rules = ruleRepository.findActiveRulesForUser(userId);
+        Set<Long> visibleCategoryIds = categoryViewService.getEffectiveCategoriesForUser(userId).stream()
+                .map(category -> category.getId())
+                .collect(Collectors.toSet());
 
         for (CategorizationRule rule : rules) {
+            if (!visibleCategoryIds.contains(rule.getCategoryId())) {
+                continue;
+            }
             String textToMatch = getTextToMatch(rule.getMatchField(), description, payee, memo);
 
             if (textToMatch != null && matches(textToMatch, rule.getPattern(), rule.getPatternType())) {

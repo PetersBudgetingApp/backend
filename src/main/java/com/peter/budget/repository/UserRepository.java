@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -39,6 +40,11 @@ public class UserRepository {
         var params = new MapSqlParameterSource("email", email);
         var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    public List<Long> findAllUserIds() {
+        String sql = "SELECT id FROM users ORDER BY id";
+        return jdbcTemplate.queryForList(sql, new MapSqlParameterSource(), Long.class);
     }
 
     public boolean existsByEmail(String email) {

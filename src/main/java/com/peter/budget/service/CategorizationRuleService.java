@@ -17,6 +17,7 @@ public class CategorizationRuleService {
 
     private final CategorizationRuleRepository categorizationRuleRepository;
     private final CategoryViewService categoryViewService;
+    private final TransactionService transactionService;
 
     public List<CategorizationRuleDto> getRulesForUser(Long userId) {
         return categorizationRuleRepository.findByUserId(userId).stream()
@@ -41,6 +42,7 @@ public class CategorizationRuleService {
                 .build();
 
         rule = categorizationRuleRepository.save(rule);
+        transactionService.backfillCategorizationRules(userId);
         return toDto(rule);
     }
 
