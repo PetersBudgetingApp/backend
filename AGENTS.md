@@ -70,6 +70,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - `controller/CategoryController.java`
 - `controller/CategorizationRuleController.java`
 - `controller/AnalyticsController.java`
+- `controller/BudgetController.java`
 - `controller/RecurringController.java`
 
 ### Core services
@@ -79,6 +80,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - Transfers: `service/TransferDetectionService.java`
 - Categories: `service/CategoryService.java`
 - Analytics: `service/AnalyticsService.java`
+- Budgets: `service/BudgetService.java`
 - Recurring facade: `service/RecurringDetectionService.java`
 - SimpleFIN facade: `service/simplefin/SimpleFinSyncService.java`
 
@@ -195,6 +197,15 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - `GET /api/v1/analytics/cashflow`
   - `AnalyticsController.getCashFlow` -> `AnalyticsService.getCashFlow` -> `TransactionAnalyticsRepository.sumByUserIdAndDateRangeAndType`
 
+### Budgets
+- `GET /api/v1/budgets?month=YYYY-MM`
+  - `BudgetController.getBudgetMonth` -> `BudgetService.getBudgetMonth` -> `BudgetTargetRepository.findByUserIdAndMonthKey`
+- `PUT /api/v1/budgets/{month}`
+  - request DTO: `BudgetMonthUpsertRequest`
+  - `BudgetController.upsertBudgetMonth` -> `BudgetService.upsertBudgetMonth` -> `BudgetTargetRepository.replaceMonthTargets`
+- `DELETE /api/v1/budgets/{month}/categories/{categoryId}`
+  - `BudgetController.deleteBudgetTarget` -> `BudgetService.deleteTarget` -> `BudgetTargetRepository.deleteByUserIdAndMonthKeyAndCategoryId`
+
 ### Recurring
 - `GET /api/v1/recurring`
   - `RecurringController.getRecurringPatterns` -> `RecurringDetectionService.getRecurringPatterns` -> `RecurringPatternQueryService.getRecurringPatterns`
@@ -273,6 +284,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - Banking: `SimpleFinConnection`, `Account`, `Transaction`
   - `Transaction` includes optional `categorized_by_rule_id` linkage when auto-categorized by a rule.
 - Classification: `Category`, `CategorizationRule`
+- Budgeting: `BudgetTarget`
 - Recurring: `RecurringPattern`
 
 ### Migration files
@@ -282,6 +294,8 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - `V4__connection_backfill_cursor.sql` adds backfill cursor date.
 - `V5__normalize_backfill_state.sql` normalizes conflicting backfill state.
 - `V6__category_overrides.sql` adds per-user override/hide state for system categories.
+- `V7__transaction_rule_tracking.sql` adds `categorized_by_rule_id` linkage on transactions.
+- `V8__budget_targets.sql` adds persisted monthly category targets by user.
 
 ## Scheduler Behavior
 - Scheduler class: `scheduler/SyncScheduler.java`
@@ -300,6 +314,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
   - transactions list/coverage/update
   - categories CRUD/list
   - analytics spending/cashflow (trends endpoint exists, not currently wired to visible dashboard chart)
+  - budgets month read/write/delete
 - Exposed in backend but not surfaced as full frontend workflows:
   - recurring management endpoints
   - transfer pair management endpoints
@@ -336,7 +351,6 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 4. When modifying service algorithms (sync/transfer/recurring), update AGENTS docs and tests in same change.
 
 ## Known Functional Gaps
-- No server-side `/budgets` endpoint group yet.
 - Test suite is minimal (mostly context-load), so service-level regression tests are still needed for high-safety refactors.
 
 ## Notes Protocol (Required)

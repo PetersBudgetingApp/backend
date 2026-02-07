@@ -278,6 +278,28 @@ Params:
 - `/trends`: `months` (default `6`)
 - `/cashflow`: `startDate`, `endDate` (optional)
 
+### Budgets
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/v1/budgets?month=YYYY-MM` | Yes | Get monthly budget targets for the authenticated user |
+| PUT | `/api/v1/budgets/{month}` | Yes | Replace monthly category targets for the authenticated user |
+| DELETE | `/api/v1/budgets/{month}/categories/{categoryId}` | Yes | Delete one category target for a month |
+
+`PUT /api/v1/budgets/{month}` body:
+
+```json
+{
+  "targets": [
+    {
+      "categoryId": 123,
+      "targetAmount": 500.0,
+      "notes": "Groceries + dining"
+    }
+  ]
+}
+```
+
 ### Recurring
 
 | Method | Path | Auth | Description |
