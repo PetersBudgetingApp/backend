@@ -90,6 +90,15 @@ public class SimpleFinSyncSupport {
                     changed = true;
                 }
 
+                if (tx.getCategoryId() == null && !tx.isManuallyCategorized()) {
+                    Long categoryId = categorizationService.categorize(
+                            account.getUserId(), sfTx.description(), sfTx.payee(), sfTx.memo());
+                    if (categoryId != null) {
+                        tx.setCategoryId(categoryId);
+                        changed = true;
+                    }
+                }
+
                 if (changed) {
                     transactionWriteRepository.save(tx);
                     updated++;
@@ -111,6 +120,7 @@ public class SimpleFinSyncSupport {
                         account.getUserId(), sfTx.description(), sfTx.payee(), sfTx.memo());
                 if (categoryId != null) {
                     tx.setCategoryId(categoryId);
+                    tx.setManuallyCategorized(false);
                 }
 
                 transactionWriteRepository.save(tx);

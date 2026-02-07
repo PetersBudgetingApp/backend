@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 
 @Repository
 @RequiredArgsConstructor
@@ -128,6 +129,30 @@ public class TransactionWriteRepository {
         var params = new MapSqlParameterSource()
                 .addValue("id", transactionId)
                 .addValue("now", Timestamp.from(Instant.now()));
+        jdbcTemplate.update(sql, params);
+    }
+
+    public void clearCategoryForUserAndCategoryIds(Long userId, List<Long> categoryIds) {
+        if (categoryIds == null || categoryIds.isEmpty()) {
+            return;
+        }
+
+        String sql = """
+            UPDATE transactions
+            SET
+                category_id = NULL,
+                is_manually_categorized = false,
+                updated_at = :updatedAt
+            WHERE
+                category_id IN (:categoryIds)
+                AND account_id IN (SELECT id FROM accounts WHERE user_id = :userId)
+            """;
+
+        var params = new MapSqlParameterSource()
+                .addValue("userId", userId)
+                .addValue("categoryIds", categoryIds)
+                .addValue("updatedAt", Timestamp.from(Instant.now()));
+
         jdbcTemplate.update(sql, params);
     }
 }

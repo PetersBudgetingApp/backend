@@ -67,6 +67,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - `controller/AccountController.java`
 - `controller/TransactionController.java`
 - `controller/CategoryController.java`
+- `controller/CategorizationRuleController.java`
 - `controller/AnalyticsController.java`
 - `controller/RecurringController.java`
 
@@ -166,6 +167,18 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - `DELETE /api/v1/categories/{id}`
   - `CategoryController.deleteCategory` -> `CategoryService.deleteCategory`
 
+### Categorization Rules
+- `GET /api/v1/categorization-rules`
+  - `CategorizationRuleController.getRules` -> `CategorizationRuleService.getRulesForUser`
+- `POST /api/v1/categorization-rules`
+  - request DTO: `CategorizationRuleUpsertRequest`
+  - `CategorizationRuleController.createRule` -> `CategorizationRuleService.createRule`
+- `PUT /api/v1/categorization-rules/{id}`
+  - request DTO: `CategorizationRuleUpsertRequest`
+  - `CategorizationRuleController.updateRule` -> `CategorizationRuleService.updateRule`
+- `DELETE /api/v1/categorization-rules/{id}`
+  - `CategorizationRuleController.deleteRule` -> `CategorizationRuleService.deleteRule`
+
 ### Analytics
 - `GET /api/v1/analytics/spending`
   - `AnalyticsController.getSpendingByCategory` -> `AnalyticsService.getSpendingByCategory` -> `TransactionAnalyticsRepository.sumByCategory`
@@ -251,6 +264,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - `V3__connection_initial_sync_flag.sql` adds initial sync completion flag.
 - `V4__connection_backfill_cursor.sql` adds backfill cursor date.
 - `V5__normalize_backfill_state.sql` normalizes conflicting backfill state.
+- `V6__category_overrides.sql` adds per-user override/hide state for system categories.
 
 ## Scheduler Behavior
 - Scheduler class: `scheduler/SyncScheduler.java`
@@ -306,7 +320,6 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 
 ## Known Functional Gaps
 - No server-side `/budgets` endpoint group yet.
-- Auto-categorization rule management API is not exposed to frontend.
 - Test suite is minimal (mostly context-load), so service-level regression tests are still needed for high-safety refactors.
 
 ## Notes Protocol (Required)

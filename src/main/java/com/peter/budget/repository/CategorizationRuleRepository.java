@@ -64,6 +64,18 @@ public class CategorizationRuleRepository {
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
+    public Optional<CategorizationRule> findByIdAndUserId(Long id, Long userId) {
+        String sql = """
+            SELECT * FROM categorization_rules
+            WHERE id = :id AND user_id = :userId
+            """;
+        var params = new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("userId", userId);
+        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
     public CategorizationRule save(CategorizationRule rule) {
         if (rule.getId() == null) {
             return insert(rule);
@@ -132,6 +144,21 @@ public class CategorizationRuleRepository {
     public void deleteById(Long id) {
         String sql = "DELETE FROM categorization_rules WHERE id = :id AND is_system = false";
         var params = new MapSqlParameterSource("id", id);
+        jdbcTemplate.update(sql, params);
+    }
+
+    public void deleteByUserIdAndCategoryIds(Long userId, List<Long> categoryIds) {
+        if (categoryIds == null || categoryIds.isEmpty()) {
+            return;
+        }
+
+        String sql = """
+            DELETE FROM categorization_rules
+            WHERE user_id = :userId AND category_id IN (:categoryIds)
+            """;
+        var params = new MapSqlParameterSource()
+                .addValue("userId", userId)
+                .addValue("categoryIds", categoryIds);
         jdbcTemplate.update(sql, params);
     }
 }

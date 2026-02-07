@@ -6,8 +6,8 @@ import com.peter.budget.model.dto.RecurringPatternDto;
 import com.peter.budget.model.dto.UpcomingBillDto;
 import com.peter.budget.model.entity.Category;
 import com.peter.budget.model.entity.RecurringPattern;
-import com.peter.budget.repository.CategoryRepository;
 import com.peter.budget.repository.RecurringPatternRepository;
+import com.peter.budget.service.CategoryViewService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +22,7 @@ import java.util.List;
 public class RecurringPatternQueryService {
 
     private final RecurringPatternRepository patternRepository;
-    private final CategoryRepository categoryRepository;
+    private final CategoryViewService categoryViewService;
 
     public List<RecurringPatternDto> getRecurringPatterns(Long userId) {
         return patternRepository.findActiveByUserId(userId).stream()
@@ -76,7 +76,7 @@ public class RecurringPatternQueryService {
 
         CategoryDto categoryDto = null;
         if (pattern.getCategoryId() != null) {
-            categoryDto = categoryRepository.findById(pattern.getCategoryId())
+            categoryDto = categoryViewService.getEffectiveCategoryByIdForUser(pattern.getUserId(), pattern.getCategoryId())
                     .map(this::toCategoryDto)
                     .orElse(null);
         }
@@ -95,7 +95,7 @@ public class RecurringPatternQueryService {
     private RecurringPatternDto toDto(RecurringPattern pattern) {
         CategoryDto categoryDto = null;
         if (pattern.getCategoryId() != null) {
-            categoryDto = categoryRepository.findById(pattern.getCategoryId())
+            categoryDto = categoryViewService.getEffectiveCategoryByIdForUser(pattern.getUserId(), pattern.getCategoryId())
                     .map(this::toCategoryDto)
                     .orElse(null);
         }

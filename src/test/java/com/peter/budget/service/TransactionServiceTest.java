@@ -8,7 +8,6 @@ import com.peter.budget.model.entity.Transaction;
 import com.peter.budget.model.enums.AccountType;
 import com.peter.budget.model.enums.CategoryType;
 import com.peter.budget.repository.AccountRepository;
-import com.peter.budget.repository.CategoryRepository;
 import com.peter.budget.repository.TransactionReadRepository;
 import com.peter.budget.repository.TransactionWriteRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -47,7 +47,7 @@ class TransactionServiceTest {
     @Mock
     private AccountRepository accountRepository;
     @Mock
-    private CategoryRepository categoryRepository;
+    private CategoryViewService categoryViewService;
     @Mock
     private TransferDetectionService transferDetectionService;
 
@@ -67,6 +67,8 @@ class TransactionServiceTest {
                         .name("Checking")
                         .accountType(AccountType.CHECKING)
                         .build()));
+        when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID))
+                .thenReturn(Map.of());
     }
 
     @Test
@@ -99,8 +101,8 @@ class TransactionServiceTest {
 
         when(transactionReadRepository.findByIdAndUserId(TRANSACTION_ID, USER_ID))
                 .thenReturn(Optional.of(existing));
-        when(categoryRepository.findById(5L))
-                .thenReturn(Optional.of(Category.builder()
+        when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID))
+                .thenReturn(Map.of(5L, Category.builder()
                         .id(5L)
                         .name("Food")
                         .categoryType(CategoryType.EXPENSE)
@@ -117,7 +119,7 @@ class TransactionServiceTest {
         assertTrue(saved.isManuallyCategorized());
         assertNotNull(result.getCategory());
         assertEquals(5L, result.getCategory().getId());
-        verify(categoryRepository, never()).findByIdForUser(any(Long.class), any(Long.class));
+        verify(categoryViewService, never()).getEffectiveCategoryByIdForUser(any(Long.class), any(Long.class));
     }
 
     @Test
@@ -133,10 +135,10 @@ class TransactionServiceTest {
 
         when(transactionReadRepository.findByIdAndUserId(TRANSACTION_ID, USER_ID))
                 .thenReturn(Optional.of(existing));
-        when(categoryRepository.findByIdForUser(42L, USER_ID))
+        when(categoryViewService.getEffectiveCategoryByIdForUser(USER_ID, 42L))
                 .thenReturn(Optional.of(groceries));
-        when(categoryRepository.findById(42L))
-                .thenReturn(Optional.of(groceries));
+        when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID))
+                .thenReturn(Map.of(42L, groceries));
 
         TransactionUpdateRequest request = new TransactionUpdateRequest();
         request.setCategoryId(42L);

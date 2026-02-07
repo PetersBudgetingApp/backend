@@ -4,7 +4,6 @@ import com.peter.budget.model.dto.CashFlowDto;
 import com.peter.budget.model.dto.SpendingByCategoryDto;
 import com.peter.budget.model.dto.TrendDto;
 import com.peter.budget.model.entity.Category;
-import com.peter.budget.repository.CategoryRepository;
 import com.peter.budget.repository.TransactionAnalyticsRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,15 +15,13 @@ import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class AnalyticsService {
 
     private final TransactionAnalyticsRepository transactionAnalyticsRepository;
-    private final CategoryRepository categoryRepository;
+    private final CategoryViewService categoryViewService;
 
     public SpendingByCategoryDto getSpendingByCategory(Long userId, LocalDate startDate, LocalDate endDate) {
         if (startDate == null) {
@@ -37,8 +34,7 @@ public class AnalyticsService {
         List<TransactionAnalyticsRepository.CategorySpendingProjection> results =
                 transactionAnalyticsRepository.sumByCategory(userId, startDate, endDate);
 
-        Map<Long, Category> categoryMap = categoryRepository.findByUserId(userId).stream()
-                .collect(Collectors.toMap(Category::getId, Function.identity()));
+        Map<Long, Category> categoryMap = categoryViewService.getEffectiveCategoryMapForUser(userId);
 
         BigDecimal totalSpending = results.stream()
                 .map(TransactionAnalyticsRepository.CategorySpendingProjection::totalAmount)

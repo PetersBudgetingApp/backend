@@ -10,7 +10,6 @@ import com.peter.budget.model.entity.Account;
 import com.peter.budget.model.entity.Category;
 import com.peter.budget.model.entity.Transaction;
 import com.peter.budget.repository.AccountRepository;
-import com.peter.budget.repository.CategoryRepository;
 import com.peter.budget.repository.TransactionReadRepository;
 import com.peter.budget.repository.TransactionWriteRepository;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +28,7 @@ public class TransactionService {
     private final TransactionReadRepository transactionReadRepository;
     private final TransactionWriteRepository transactionWriteRepository;
     private final AccountRepository accountRepository;
-    private final CategoryRepository categoryRepository;
+    private final CategoryViewService categoryViewService;
     private final TransferDetectionService transferDetectionService;
 
     public List<TransactionDto> getTransactions(Long userId, boolean includeTransfers,
@@ -40,10 +39,10 @@ public class TransactionService {
                 userId, includeTransfers, startDate, endDate, categoryId, accountId, limit, offset);
 
         Map<Long, Account> accountCache = new HashMap<>();
-        Map<Long, Category> categoryCache = new HashMap<>();
+        Map<Long, Category> categoryMap = categoryViewService.getEffectiveCategoryMapForUser(userId);
 
         return transactions.stream()
-                .map(tx -> toDto(tx, accountCache, categoryCache))
+                .map(tx -> toDto(tx, accountCache, categoryMap))
                 .toList();
     }
 
@@ -52,9 +51,9 @@ public class TransactionService {
                 .orElseThrow(() -> ApiException.notFound("Transaction not found"));
 
         Map<Long, Account> accountCache = new HashMap<>();
-        Map<Long, Category> categoryCache = new HashMap<>();
+        Map<Long, Category> categoryMap = categoryViewService.getEffectiveCategoryMapForUser(userId);
 
-        return toDto(tx, accountCache, categoryCache);
+        return toDto(tx, accountCache, categoryMap);
     }
 
     public TransactionCoverageDto getTransactionCoverage(Long userId) {
@@ -76,7 +75,7 @@ public class TransactionService {
                 tx.setCategoryId(null);
                 tx.setManuallyCategorized(false);
             } else {
-                categoryRepository.findByIdForUser(request.getCategoryId(), userId)
+                categoryViewService.getEffectiveCategoryByIdForUser(userId, request.getCategoryId())
                         .orElseThrow(() -> ApiException.notFound("Category not found"));
                 tx.setCategoryId(request.getCategoryId());
                 tx.setManuallyCategorized(true);
@@ -94,8 +93,8 @@ public class TransactionService {
         tx = transactionWriteRepository.save(tx);
 
         Map<Long, Account> accountCache = new HashMap<>();
-        Map<Long, Category> categoryCache = new HashMap<>();
-        return toDto(tx, accountCache, categoryCache);
+        Map<Long, Category> categoryMap = categoryViewService.getEffectiveCategoryMapForUser(userId);
+        return toDto(tx, accountCache, categoryMap);
     }
 
     public List<TransferPairDto> getTransfers(Long userId) {
@@ -113,19 +112,13 @@ public class TransactionService {
     }
 
     private TransactionDto toDto(Transaction tx, Map<Long, Account> accountCache,
-                                   Map<Long, Category> categoryCache) {
+                                   Map<Long, Category> categoryMap) {
         Account account = accountCache.computeIfAbsent(
                 tx.getAccountId(),
                 id -> accountRepository.findById(id).orElse(null)
         );
 
-        Category category = null;
-        if (tx.getCategoryId() != null) {
-            category = categoryCache.computeIfAbsent(
-                    tx.getCategoryId(),
-                    id -> categoryRepository.findById(id).orElse(null)
-            );
-        }
+        Category category = tx.getCategoryId() != null ? categoryMap.get(tx.getCategoryId()) : null;
 
         String transferPairAccountName = null;
         if (tx.getTransferPairId() != null) {

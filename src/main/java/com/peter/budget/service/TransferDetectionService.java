@@ -5,8 +5,8 @@ import com.peter.budget.model.dto.TransferPairDto;
 import com.peter.budget.model.entity.Account;
 import com.peter.budget.model.entity.Transaction;
 import com.peter.budget.model.enums.AccountType;
+import com.peter.budget.model.enums.CategoryType;
 import com.peter.budget.repository.AccountRepository;
-import com.peter.budget.repository.CategoryRepository;
 import com.peter.budget.repository.TransactionReadRepository;
 import com.peter.budget.repository.TransactionWriteRepository;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +36,7 @@ public class TransferDetectionService {
     private final TransactionReadRepository transactionReadRepository;
     private final TransactionWriteRepository transactionWriteRepository;
     private final AccountRepository accountRepository;
-    private final CategoryRepository categoryRepository;
+    private final CategoryViewService categoryViewService;
 
     @Transactional
     public int detectTransfers(Long userId) {
@@ -84,7 +84,7 @@ public class TransferDetectionService {
             }
 
             if (bestMatch != null) {
-                linkAsTransfer(tx, bestMatch.transaction());
+                linkAsTransfer(userId, tx, bestMatch.transaction());
                 transfersDetected++;
                 log.debug("Linked transfer pair: {} <-> {} with score {}",
                         tx.getId(), bestMatch.transaction().getId(), bestMatch.score());
@@ -139,16 +139,16 @@ public class TransferDetectionService {
     }
 
     @Transactional
-    public void linkAsTransfer(Transaction tx1, Transaction tx2) {
+    public void linkAsTransfer(Long userId, Transaction tx1, Transaction tx2) {
         transactionWriteRepository.linkTransferPair(tx1.getId(), tx2.getId());
 
-        categoryRepository.findTransferCategory().ifPresent(transferCategory -> {
+        findTransferCategoryId(userId).ifPresent(transferCategoryId -> {
             if (!tx1.isManuallyCategorized()) {
-                tx1.setCategoryId(transferCategory.getId());
+                tx1.setCategoryId(transferCategoryId);
                 transactionWriteRepository.save(tx1);
             }
             if (!tx2.isManuallyCategorized()) {
-                tx2.setCategoryId(transferCategory.getId());
+                tx2.setCategoryId(transferCategoryId);
                 transactionWriteRepository.save(tx2);
             }
         });
@@ -173,7 +173,7 @@ public class TransferDetectionService {
             throw ApiException.badRequest("Transactions must have opposite amounts to be a transfer pair");
         }
 
-        linkAsTransfer(tx1, tx2);
+        linkAsTransfer(userId, tx1, tx2);
     }
 
     @Transactional
@@ -233,4 +233,12 @@ public class TransferDetectionService {
     }
 
     private record TransferCandidate(Transaction transaction, double score) {}
+
+    private Optional<Long> findTransferCategoryId(Long userId) {
+        return categoryViewService.getEffectiveCategoriesForUser(userId).stream()
+                .filter(category -> category.getCategoryType() == CategoryType.TRANSFER)
+                .map(category -> category.getId())
+                .filter(Objects::nonNull)
+                .findFirst();
+    }
 }

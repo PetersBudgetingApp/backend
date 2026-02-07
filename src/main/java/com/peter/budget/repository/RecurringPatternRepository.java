@@ -187,4 +187,27 @@ public class RecurringPatternRepository {
         var params = new MapSqlParameterSource("id", id);
         jdbcTemplate.update(sql, params);
     }
+
+    public void clearCategoryForUserAndCategoryIds(Long userId, List<Long> categoryIds) {
+        if (categoryIds == null || categoryIds.isEmpty()) {
+            return;
+        }
+
+        String sql = """
+            UPDATE recurring_patterns
+            SET
+                category_id = NULL,
+                updated_at = :updatedAt
+            WHERE
+                user_id = :userId
+                AND category_id IN (:categoryIds)
+            """;
+
+        var params = new MapSqlParameterSource()
+                .addValue("userId", userId)
+                .addValue("categoryIds", categoryIds)
+                .addValue("updatedAt", Timestamp.from(Instant.now()));
+
+        jdbcTemplate.update(sql, params);
+    }
 }
