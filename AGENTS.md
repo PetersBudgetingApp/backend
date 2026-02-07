@@ -323,9 +323,10 @@ A new agent should be able to trace any endpoint to controller, service, reposit
   - categories CRUD/list
   - analytics spending/cashflow (trends endpoint exists, not currently wired to visible dashboard chart)
   - budgets month read/write/delete
-- Exposed in backend but not surfaced as full frontend workflows:
-  - recurring management endpoints
-  - transfer pair management endpoints
+- Now surfaced in frontend:
+  - recurring management endpoints (list, detect, upcoming, toggle, delete)
+  - transfer pair management endpoints (list, mark, unlink)
+  - account detail endpoint (get by id)
 
 ## Common Debug Paths
 - Unauthorized/auth failures:
