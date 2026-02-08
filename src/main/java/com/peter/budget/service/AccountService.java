@@ -2,8 +2,10 @@ package com.peter.budget.service;
 
 import com.peter.budget.exception.ApiException;
 import com.peter.budget.model.dto.AccountDto;
+import com.peter.budget.model.dto.AccountNetWorthCategoryUpdateRequest;
 import com.peter.budget.model.dto.AccountSummaryDto;
 import com.peter.budget.model.entity.Account;
+import com.peter.budget.model.enums.AccountNetWorthCategory;
 import com.peter.budget.model.enums.AccountType;
 import com.peter.budget.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +32,14 @@ public class AccountService {
         return toDto(account);
     }
 
+    public AccountDto updateNetWorthCategory(Long userId, Long accountId, AccountNetWorthCategoryUpdateRequest request) {
+        Account account = accountRepository.findByIdAndUserId(accountId, userId)
+                .orElseThrow(() -> ApiException.notFound("Account not found"));
+        account.setNetWorthCategoryOverride(request.getNetWorthCategory());
+        Account updated = accountRepository.save(account);
+        return toDto(updated);
+    }
+
     public AccountSummaryDto getAccountSummary(Long userId) {
         List<Account> accounts = accountRepository.findActiveByUserId(userId);
         BigDecimal totalAssets = BigDecimal.ZERO;
@@ -37,22 +47,16 @@ public class AccountService {
 
         for (Account account : accounts) {
             BigDecimal balance = account.getCurrentBalance() != null ? account.getCurrentBalance() : BigDecimal.ZERO;
+            AccountNetWorthCategory category = resolveNetWorthCategory(account, balance);
 
-            if (isLiabilityType(account.getAccountType())) {
+            if (category == AccountNetWorthCategory.LIABILITY) {
                 totalLiabilities = totalLiabilities.add(balance.abs());
                 continue;
             }
 
-            if (isAssetType(account.getAccountType())) {
+            if (category == AccountNetWorthCategory.BANK_ACCOUNT || category == AccountNetWorthCategory.INVESTMENT) {
                 totalAssets = totalAssets.add(balance);
                 continue;
-            }
-
-            // Fallback for unmapped/unknown account types.
-            if (balance.signum() >= 0) {
-                totalAssets = totalAssets.add(balance);
-            } else {
-                totalLiabilities = totalLiabilities.add(balance.abs());
             }
         }
 
@@ -70,12 +74,6 @@ public class AccountService {
                 .build();
     }
 
-    private boolean isAssetType(AccountType accountType) {
-        return accountType == AccountType.CHECKING
-                || accountType == AccountType.SAVINGS
-                || accountType == AccountType.INVESTMENT;
-    }
-
     private boolean isLiabilityType(AccountType accountType) {
         return accountType == AccountType.CREDIT_CARD
                 || accountType == AccountType.LOAN;
@@ -87,11 +85,35 @@ public class AccountService {
                 .name(account.getName())
                 .institutionName(account.getInstitutionName())
                 .accountType(account.getAccountType())
+                .netWorthCategory(resolveNetWorthCategory(account, account.getCurrentBalance()))
                 .currency(account.getCurrency())
                 .currentBalance(account.getCurrentBalance())
                 .availableBalance(account.getAvailableBalance())
                 .balanceUpdatedAt(account.getBalanceUpdatedAt())
                 .active(account.isActive())
                 .build();
+    }
+
+    private AccountNetWorthCategory resolveNetWorthCategory(Account account, BigDecimal maybeBalance) {
+        if (account.getNetWorthCategoryOverride() != null) {
+            return account.getNetWorthCategoryOverride();
+        }
+
+        if (account.getAccountType() == AccountType.CHECKING || account.getAccountType() == AccountType.SAVINGS) {
+            return AccountNetWorthCategory.BANK_ACCOUNT;
+        }
+
+        if (account.getAccountType() == AccountType.INVESTMENT) {
+            return AccountNetWorthCategory.INVESTMENT;
+        }
+
+        if (isLiabilityType(account.getAccountType())) {
+            return AccountNetWorthCategory.LIABILITY;
+        }
+
+        BigDecimal balance = maybeBalance != null ? maybeBalance : BigDecimal.ZERO;
+        return balance.signum() < 0
+                ? AccountNetWorthCategory.LIABILITY
+                : AccountNetWorthCategory.BANK_ACCOUNT;
     }
 }

@@ -2,8 +2,10 @@ package com.peter.budget.controller;
 
 import com.peter.budget.config.JwtAuthFilter;
 import com.peter.budget.model.dto.AccountDto;
+import com.peter.budget.model.dto.AccountNetWorthCategoryUpdateRequest;
 import com.peter.budget.model.dto.AccountSummaryDto;
 import com.peter.budget.service.AccountService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -37,6 +39,15 @@ public class AccountController {
             @AuthenticationPrincipal JwtAuthFilter.UserPrincipal principal,
             @PathVariable Long id) {
         AccountDto account = accountService.getAccount(principal.userId(), id);
+        return ResponseEntity.ok(account);
+    }
+
+    @PatchMapping("/{id}/net-worth-category")
+    public ResponseEntity<AccountDto> updateAccountNetWorthCategory(
+            @AuthenticationPrincipal JwtAuthFilter.UserPrincipal principal,
+            @PathVariable Long id,
+            @Valid @RequestBody AccountNetWorthCategoryUpdateRequest request) {
+        AccountDto account = accountService.updateNetWorthCategory(principal.userId(), id, request);
         return ResponseEntity.ok(account);
     }
 }

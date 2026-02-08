@@ -1,6 +1,7 @@
 package com.peter.budget.model.dto;
 
 import com.peter.budget.model.enums.AccountType;
+import com.peter.budget.model.enums.AccountNetWorthCategory;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,6 +19,7 @@ public class AccountDto {
     private String name;
     private String institutionName;
     private AccountType accountType;
+    private AccountNetWorthCategory netWorthCategory;
     private String currency;
     private BigDecimal currentBalance;
     private BigDecimal availableBalance;

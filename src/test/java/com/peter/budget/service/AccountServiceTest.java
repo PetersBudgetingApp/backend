@@ -2,8 +2,10 @@ package com.peter.budget.service;
 
 import com.peter.budget.exception.ApiException;
 import com.peter.budget.model.dto.AccountDto;
+import com.peter.budget.model.dto.AccountNetWorthCategoryUpdateRequest;
 import com.peter.budget.model.dto.AccountSummaryDto;
 import com.peter.budget.model.entity.Account;
+import com.peter.budget.model.enums.AccountNetWorthCategory;
 import com.peter.budget.model.enums.AccountType;
 import com.peter.budget.repository.AccountRepository;
 import org.junit.jupiter.api.Test;
@@ -21,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -71,6 +74,7 @@ class AccountServiceTest {
         assertNotNull(result);
         assertEquals(1L, result.getId());
         assertEquals(AccountType.CHECKING, result.getAccountType());
+        assertEquals(AccountNetWorthCategory.BANK_ACCOUNT, result.getNetWorthCategory());
         assertEquals(new BigDecimal("500.00"), result.getCurrentBalance());
     }
 
@@ -116,6 +120,21 @@ class AccountServiceTest {
         assertEquals(BigDecimal.ZERO, summary.getTotalAssets());
         assertEquals(new BigDecimal("55.00"), summary.getTotalLiabilities());
         assertEquals(new BigDecimal("-55.00"), summary.getNetWorth());
+    }
+
+    @Test
+    void getAccountSummaryUsesOverrideCategoryWhenSet() {
+        Account account = account(1L, AccountType.OTHER, "250.00");
+        account.setNetWorthCategoryOverride(AccountNetWorthCategory.LIABILITY);
+
+        when(accountRepository.findActiveByUserId(USER_ID)).thenReturn(List.of(account));
+
+        AccountSummaryDto summary = accountService.getAccountSummary(USER_ID);
+
+        assertEquals(BigDecimal.ZERO, summary.getTotalAssets());
+        assertEquals(new BigDecimal("250.00"), summary.getTotalLiabilities());
+        assertEquals(new BigDecimal("-250.00"), summary.getNetWorth());
+        assertEquals(AccountNetWorthCategory.LIABILITY, summary.getAccounts().get(0).getNetWorthCategory());
     }
 
     @Test
@@ -184,6 +203,23 @@ class AccountServiceTest {
 
         assertEquals(1, summary.getAccounts().size());
         assertEquals(1L, summary.getAccounts().get(0).getId());
+    }
+
+    // --- updateNetWorthCategory tests ---
+
+    @Test
+    void updateNetWorthCategoryPersistsOverride() {
+        Account account = account(1L, AccountType.CHECKING, "500.00");
+        AccountNetWorthCategoryUpdateRequest request = new AccountNetWorthCategoryUpdateRequest();
+        request.setNetWorthCategory(AccountNetWorthCategory.LIABILITY);
+
+        when(accountRepository.findByIdAndUserId(1L, USER_ID)).thenReturn(Optional.of(account));
+        when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AccountDto result = accountService.updateNetWorthCategory(USER_ID, 1L, request);
+
+        assertEquals(AccountNetWorthCategory.LIABILITY, account.getNetWorthCategoryOverride());
+        assertEquals(AccountNetWorthCategory.LIABILITY, result.getNetWorthCategory());
     }
 
     private Account account(Long id, AccountType type, String balance) {

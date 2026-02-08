@@ -1,6 +1,7 @@
 package com.peter.budget.repository;
 
 import com.peter.budget.model.entity.Account;
+import com.peter.budget.model.enums.AccountNetWorthCategory;
 import com.peter.budget.model.enums.AccountType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.RowMapper;
@@ -32,6 +33,7 @@ public class AccountRepository {
                 .name(rs.getString("name"))
                 .institutionName(rs.getString("institution_name"))
                 .accountType(AccountType.valueOf(rs.getString("account_type")))
+                .netWorthCategoryOverride(mapNetWorthCategory(rs.getString("net_worth_category_override")))
                 .currency(rs.getString("currency"))
                 .currentBalance(rs.getBigDecimal("current_balance"))
                 .availableBalance(rs.getBigDecimal("available_balance"))
@@ -109,10 +111,10 @@ public class AccountRepository {
         String sql = """
             INSERT INTO accounts (user_id, connection_id, external_id, name, institution_name,
                 account_type, currency, current_balance, available_balance, balance_updated_at,
-                is_active, created_at, updated_at)
+                net_worth_category_override, is_active, created_at, updated_at)
             VALUES (:userId, :connectionId, :externalId, :name, :institutionName,
                 :accountType, :currency, :currentBalance, :availableBalance, :balanceUpdatedAt,
-                :isActive, :createdAt, :updatedAt)
+                :netWorthCategoryOverride, :isActive, :createdAt, :updatedAt)
             """;
 
         Instant now = Instant.now();
@@ -130,6 +132,9 @@ public class AccountRepository {
                 .addValue("availableBalance", account.getAvailableBalance())
                 .addValue("balanceUpdatedAt", account.getBalanceUpdatedAt() != null ?
                         Timestamp.from(account.getBalanceUpdatedAt()) : null)
+                .addValue("netWorthCategoryOverride", account.getNetWorthCategoryOverride() != null
+                        ? account.getNetWorthCategoryOverride().name()
+                        : null)
                 .addValue("isActive", account.isActive())
                 .addValue("createdAt", Timestamp.from(now))
                 .addValue("updatedAt", Timestamp.from(now));
@@ -148,7 +153,8 @@ public class AccountRepository {
                 name = :name, institution_name = :institutionName,
                 account_type = :accountType, currency = :currency,
                 current_balance = :currentBalance, available_balance = :availableBalance,
-                balance_updated_at = :balanceUpdatedAt, is_active = :isActive, updated_at = :updatedAt
+                balance_updated_at = :balanceUpdatedAt, net_worth_category_override = :netWorthCategoryOverride,
+                is_active = :isActive, updated_at = :updatedAt
             WHERE id = :id
             """;
 
@@ -163,6 +169,9 @@ public class AccountRepository {
                 .addValue("availableBalance", account.getAvailableBalance())
                 .addValue("balanceUpdatedAt", account.getBalanceUpdatedAt() != null ?
                         Timestamp.from(account.getBalanceUpdatedAt()) : null)
+                .addValue("netWorthCategoryOverride", account.getNetWorthCategoryOverride() != null
+                        ? account.getNetWorthCategoryOverride().name()
+                        : null)
                 .addValue("isActive", account.isActive())
                 .addValue("updatedAt", Timestamp.from(now));
 
@@ -180,5 +189,12 @@ public class AccountRepository {
                 .addValue("userId", userId)
                 .addValue("types", types.stream().map(AccountType::name).toList());
         return jdbcTemplate.queryForObject(sql, params, BigDecimal.class);
+    }
+
+    private static AccountNetWorthCategory mapNetWorthCategory(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return AccountNetWorthCategory.valueOf(value);
     }
 }

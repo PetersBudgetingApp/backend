@@ -1,6 +1,7 @@
 package com.peter.budget.model.entity;
 
 import com.peter.budget.model.enums.AccountType;
+import com.peter.budget.model.enums.AccountNetWorthCategory;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,6 +22,7 @@ public class Account {
     private String name;
     private String institutionName;
     private AccountType accountType;
+    private AccountNetWorthCategory netWorthCategoryOverride;
     private String currency;
     private BigDecimal currentBalance;
     private BigDecimal availableBalance;

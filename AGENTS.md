@@ -146,6 +146,9 @@ A new agent should be able to trace any endpoint to controller, service, reposit
   - `AccountController.getAccountSummary` -> `AccountService.getAccountSummary`
 - `GET /api/v1/accounts/{id}`
   - `AccountController.getAccount` -> `AccountService.getAccount`
+- `PATCH /api/v1/accounts/{id}/net-worth-category`
+  - request DTO: `AccountNetWorthCategoryUpdateRequest`
+  - `AccountController.updateAccountNetWorthCategory` -> `AccountService.updateNetWorthCategory`
 
 ### Transactions
 - `GET /api/v1/transactions`
@@ -290,6 +293,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 ### Entities
 - Auth: `User`, `RefreshToken`
 - Banking: `SimpleFinConnection`, `Account`, `Transaction`
+  - `Account` supports optional `net_worth_category_override` (`BANK_ACCOUNT`, `INVESTMENT`, `LIABILITY`) for dashboard grouping.
   - `Transaction` includes optional `categorized_by_rule_id` linkage when auto-categorized by a rule.
 - Classification: `Category`, `CategorizationRule`
 - Budgeting: `BudgetTarget`
@@ -304,6 +308,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - `V6__category_overrides.sql` adds per-user override/hide state for system categories.
 - `V7__transaction_rule_tracking.sql` adds `categorized_by_rule_id` linkage on transactions.
 - `V8__budget_targets.sql` adds persisted monthly category targets by user.
+- `V9__account_net_worth_category_override.sql` adds optional per-account net worth category override.
 
 ## Scheduler Behavior
 - Scheduler class: `scheduler/SyncScheduler.java`
@@ -326,7 +331,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - Now surfaced in frontend:
   - recurring management endpoints (list, detect, upcoming, toggle, delete)
   - transfer pair management endpoints (list, mark, unlink)
-  - account detail endpoint (get by id)
+  - account detail endpoints (`GET /accounts/{id}`, `PATCH /accounts/{id}/net-worth-category`)
 
 ## Common Debug Paths
 - Unauthorized/auth failures:
@@ -360,7 +365,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 4. When modifying service algorithms (sync/transfer/recurring), update AGENTS docs and tests in same change.
 
 ## Test Coverage
-- 117 tests across 16 test classes (all passing).
+- 119 tests across 16 test classes (all passing).
 - Framework: JUnit 5 + Mockito, `@ExtendWith(MockitoExtension.class)`.
 - Coverage spans: Auth, Categories, Transactions, Analytics, Budgets, Accounts, Transfers, Recurring, CategoryView, CategorizationRules, AutoCategorization, JwtService, SecurityErrorHandler, GlobalExceptionHandler.
 - Test files under `src/test/java/com/peter/budget/`:
@@ -368,7 +373,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
   - `service/auth/JwtServiceTest.java` (11 tests)
   - `service/CategoryServiceTest.java` (13 tests)
   - `service/BudgetServiceTest.java` (11 tests)
-  - `service/AccountServiceTest.java` (11 tests)
+  - `service/AccountServiceTest.java` (13 tests)
   - `service/TransferDetectionServiceTest.java` (10 tests)
   - `service/AnalyticsServiceTest.java` (9 tests)
   - `service/TransactionServiceTest.java` (7 tests)
