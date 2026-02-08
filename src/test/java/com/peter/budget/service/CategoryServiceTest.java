@@ -244,6 +244,104 @@ class CategoryServiceTest {
         assertEquals("Category cannot be its own parent", exception.getMessage());
     }
 
+    @Test
+    void updateSystemCategoryCreatesOverrideWhenNoneExists() {
+        Category systemCategory = category(ROOT_ID, null, true, "Rideshare");
+        systemCategory.setUserId(USER_ID);
+        systemCategory.setIcon("car");
+        systemCategory.setColor("#888888");
+
+        when(categoryRepository.findByIdForUser(ROOT_ID, USER_ID)).thenReturn(Optional.of(systemCategory));
+        when(categoryOverrideRepository.findByUserIdAndCategoryId(USER_ID, ROOT_ID))
+                .thenReturn(Optional.empty());
+        when(categoryOverrideRepository.save(any(CategoryOverride.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        Category updatedCategory = category(ROOT_ID, null, true, "Custom Rideshare");
+        updatedCategory.setIcon("taxi");
+        updatedCategory.setColor("#FF0000");
+        when(categoryViewService.getEffectiveCategoryByIdForUser(USER_ID, ROOT_ID))
+                .thenReturn(Optional.of(updatedCategory));
+
+        CategoryDto result = categoryService.updateCategory(USER_ID, ROOT_ID, CategoryCreateRequest.builder()
+                .name("Custom Rideshare")
+                .icon("taxi")
+                .color("#FF0000")
+                .build());
+
+        assertNotNull(result);
+        assertEquals("Custom Rideshare", result.getName());
+
+        ArgumentCaptor<CategoryOverride> overrideCaptor = ArgumentCaptor.forClass(CategoryOverride.class);
+        verify(categoryOverrideRepository).save(overrideCaptor.capture());
+        CategoryOverride saved = overrideCaptor.getValue();
+        assertEquals(USER_ID, saved.getUserId());
+        assertEquals(ROOT_ID, saved.getCategoryId());
+        assertEquals("Custom Rideshare", saved.getNameOverride());
+        assertEquals("taxi", saved.getIconOverride());
+        assertEquals("#FF0000", saved.getColorOverride());
+        assertFalse(saved.isHidden());
+        verify(categoryRepository, never()).save(any(Category.class));
+    }
+
+    @Test
+    void updateSystemCategoryUpdatesExistingOverride() {
+        Category systemCategory = category(ROOT_ID, null, true, "System Food");
+        systemCategory.setUserId(USER_ID);
+
+        CategoryOverride existingOverride = CategoryOverride.builder()
+                .userId(USER_ID)
+                .categoryId(ROOT_ID)
+                .nameOverride("Old Name")
+                .iconOverride("old-icon")
+                .colorOverride("#000000")
+                .hidden(false)
+                .build();
+
+        when(categoryRepository.findByIdForUser(ROOT_ID, USER_ID)).thenReturn(Optional.of(systemCategory));
+        when(categoryOverrideRepository.findByUserIdAndCategoryId(USER_ID, ROOT_ID))
+                .thenReturn(Optional.of(existingOverride));
+        when(categoryOverrideRepository.save(any(CategoryOverride.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        Category updatedCategory = category(ROOT_ID, null, true, "New Name");
+        when(categoryViewService.getEffectiveCategoryByIdForUser(USER_ID, ROOT_ID))
+                .thenReturn(Optional.of(updatedCategory));
+
+        categoryService.updateCategory(USER_ID, ROOT_ID, CategoryCreateRequest.builder()
+                .name("New Name")
+                .icon("new-icon")
+                .color("#FFFFFF")
+                .build());
+
+        ArgumentCaptor<CategoryOverride> overrideCaptor = ArgumentCaptor.forClass(CategoryOverride.class);
+        verify(categoryOverrideRepository).save(overrideCaptor.capture());
+        CategoryOverride saved = overrideCaptor.getValue();
+        assertEquals("New Name", saved.getNameOverride());
+        assertEquals("new-icon", saved.getIconOverride());
+        assertEquals("#FFFFFF", saved.getColorOverride());
+    }
+
+    @Test
+    void createCategoryWithValidParentSucceeds() {
+        when(categoryViewService.getEffectiveCategoryByIdForUser(USER_ID, ROOT_ID))
+                .thenReturn(Optional.of(category(ROOT_ID, null, false, "Food")));
+        when(categoryRepository.save(any(Category.class))).thenAnswer(invocation -> {
+            Category saved = invocation.getArgument(0);
+            saved.setId(300L);
+            return saved;
+        });
+
+        CategoryDto result = categoryService.createCategory(USER_ID, CategoryCreateRequest.builder()
+                .name("Groceries")
+                .parentId(ROOT_ID)
+                .build());
+
+        assertNotNull(result);
+        assertEquals(300L, result.getId());
+        assertEquals("Groceries", result.getName());
+    }
+
     // --- deleteCategory tests ---
 
     @Test

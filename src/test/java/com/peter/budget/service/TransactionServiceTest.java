@@ -234,6 +234,180 @@ class TransactionServiceTest {
                 eq(USER_ID), eq(false), eq(null), eq(null), eq(null), eq(12L), eq(true), eq(null), eq(100), eq(0));
     }
 
+    // --- getTransaction tests ---
+
+    @Test
+    void getTransactionReturnsTransactionWhenFound() {
+        Transaction tx = baseTransaction();
+        when(transactionReadRepository.findByIdAndUserId(TRANSACTION_ID, USER_ID))
+                .thenReturn(Optional.of(tx));
+
+        TransactionDto result = transactionService.getTransaction(USER_ID, TRANSACTION_ID);
+
+        assertNotNull(result);
+        assertEquals(TRANSACTION_ID, result.getId());
+        assertEquals(ACCOUNT_ID, result.getAccountId());
+    }
+
+    @Test
+    void getTransactionThrowsNotFoundWhenMissing() {
+        when(transactionReadRepository.findByIdAndUserId(999L, USER_ID))
+                .thenReturn(Optional.empty());
+
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> transactionService.getTransaction(USER_ID, 999L)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatus());
+    }
+
+    // --- getTransactionCoverage tests ---
+
+    @Test
+    void getTransactionCoverageReturnsCoverageStats() {
+        Instant oldest = Instant.parse("2025-01-01T00:00:00Z");
+        Instant newest = Instant.parse("2026-02-01T00:00:00Z");
+        when(transactionReadRepository.getCoverageByUserId(USER_ID))
+                .thenReturn(new com.peter.budget.repository.TransactionReadRepository.TransactionCoverageStats(150L, oldest, newest));
+
+        var result = transactionService.getTransactionCoverage(USER_ID);
+
+        assertEquals(150L, result.getTotalTransactions());
+        assertEquals(oldest, result.getOldestPostedAt());
+        assertEquals(newest, result.getNewestPostedAt());
+    }
+
+    // --- updateTransaction with notes and excludeFromTotals ---
+
+    @Test
+    void updateTransactionUpdatesNotes() {
+        Transaction existing = baseTransaction();
+        when(transactionReadRepository.findByIdAndUserId(TRANSACTION_ID, USER_ID))
+                .thenReturn(Optional.of(existing));
+
+        TransactionUpdateRequest request = new TransactionUpdateRequest();
+        request.setNotes("My important note");
+
+        transactionService.updateTransaction(USER_ID, TRANSACTION_ID, request);
+
+        verify(transactionWriteRepository).save(transactionCaptor.capture());
+        assertEquals("My important note", transactionCaptor.getValue().getNotes());
+    }
+
+    @Test
+    void updateTransactionUpdatesExcludeFromTotals() {
+        Transaction existing = baseTransaction();
+        when(transactionReadRepository.findByIdAndUserId(TRANSACTION_ID, USER_ID))
+                .thenReturn(Optional.of(existing));
+
+        TransactionUpdateRequest request = new TransactionUpdateRequest();
+        request.setExcludeFromTotals(true);
+
+        transactionService.updateTransaction(USER_ID, TRANSACTION_ID, request);
+
+        verify(transactionWriteRepository).save(transactionCaptor.capture());
+        assertTrue(transactionCaptor.getValue().isExcludeFromTotals());
+    }
+
+    @Test
+    void updateTransactionThrowsNotFoundForMissingTransaction() {
+        when(transactionReadRepository.findByIdAndUserId(999L, USER_ID))
+                .thenReturn(Optional.empty());
+
+        TransactionUpdateRequest request = new TransactionUpdateRequest();
+        request.setNotes("test");
+
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> transactionService.updateTransaction(USER_ID, 999L, request)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatus());
+    }
+
+    @Test
+    void updateTransactionThrowsNotFoundForInvalidCategory() {
+        Transaction existing = baseTransaction();
+        when(transactionReadRepository.findByIdAndUserId(TRANSACTION_ID, USER_ID))
+                .thenReturn(Optional.of(existing));
+        when(categoryViewService.getEffectiveCategoryByIdForUser(USER_ID, 999L))
+                .thenReturn(Optional.empty());
+
+        TransactionUpdateRequest request = new TransactionUpdateRequest();
+        request.setCategoryId(999L);
+
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> transactionService.updateTransaction(USER_ID, TRANSACTION_ID, request)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatus());
+    }
+
+    // --- Delegation methods ---
+
+    @Test
+    void getTransfersDelegatesToTransferDetectionService() {
+        when(transferDetectionService.getTransferPairs(USER_ID)).thenReturn(List.of());
+
+        transactionService.getTransfers(USER_ID);
+
+        verify(transferDetectionService).getTransferPairs(USER_ID);
+    }
+
+    @Test
+    void markAsTransferDelegatesToTransferDetectionService() {
+        transactionService.markAsTransfer(USER_ID, 1L, 2L);
+
+        verify(transferDetectionService).markAsTransfer(USER_ID, 1L, 2L);
+    }
+
+    @Test
+    void unlinkTransferDelegatesToTransferDetectionService() {
+        transactionService.unlinkTransfer(USER_ID, 1L);
+
+        verify(transferDetectionService).unlinkTransfer(USER_ID, 1L);
+    }
+
+    // --- getTransactionsForCategorizationRule edge case ---
+
+    @Test
+    void getTransactionsForCategorizationRuleThrowsNotFoundForMissingRule() {
+        when(categorizationRuleRepository.findByIdAndUserId(999L, USER_ID))
+                .thenReturn(Optional.empty());
+
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> transactionService.getTransactionsForCategorizationRule(USER_ID, 999L, 100, 0)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatus());
+    }
+
+    // --- Transfer pair account name in toDto ---
+
+    @Test
+    void getDtoIncludesTransferPairAccountName() {
+        Transaction tx = baseTransaction();
+        tx.setTransferPairId(200L);
+
+        Transaction pairTx = Transaction.builder()
+                .id(200L).accountId(50L).build();
+
+        Account pairAccount = Account.builder().id(50L).name("Savings").build();
+
+        when(transactionReadRepository.findByIdAndUserId(TRANSACTION_ID, USER_ID))
+                .thenReturn(Optional.of(tx));
+        when(transactionReadRepository.findById(200L)).thenReturn(Optional.of(pairTx));
+        when(accountRepository.findById(50L)).thenReturn(Optional.of(pairAccount));
+
+        TransactionDto result = transactionService.getTransaction(USER_ID, TRANSACTION_ID);
+
+        assertEquals("Savings", result.getTransferPairAccountName());
+        assertEquals(200L, result.getTransferPairId());
+    }
+
     @Test
     void backfillCategorizationRulesSetsRuleTrackingForMatchingTransactions() {
         Transaction matching = baseTransaction();

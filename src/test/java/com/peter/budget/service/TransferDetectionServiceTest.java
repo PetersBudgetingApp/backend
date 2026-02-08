@@ -201,6 +201,114 @@ class TransferDetectionServiceTest {
         verify(transactionWriteRepository).unlinkTransferPair(1L);
     }
 
+    // --- detectTransfers tests ---
+
+    @Test
+    void detectTransfersLinksMatchingTransactions() {
+        Transaction outgoing = baseTransaction(1L, 10L, new BigDecimal("-500.00"));
+        outgoing.setDescription("ACH Transfer to Savings");
+        Transaction incoming = baseTransaction(2L, 20L, new BigDecimal("500.00"));
+        incoming.setDescription("ACH Transfer from Checking");
+
+        Account checkingAccount = Account.builder().id(10L).accountType(AccountType.CHECKING).build();
+        Account savingsAccount = Account.builder().id(20L).accountType(AccountType.SAVINGS).build();
+
+        when(transactionReadRepository.findUnpairedByUserId(USER_ID)).thenReturn(List.of(outgoing));
+        when(accountRepository.findById(10L)).thenReturn(Optional.of(checkingAccount));
+        when(accountRepository.findById(20L)).thenReturn(Optional.of(savingsAccount));
+
+        when(transactionReadRepository.findPotentialTransferMatches(
+                org.mockito.ArgumentMatchers.eq(USER_ID),
+                org.mockito.ArgumentMatchers.eq(10L),
+                org.mockito.ArgumentMatchers.eq(new BigDecimal("500.00")),
+                org.mockito.ArgumentMatchers.any(Instant.class),
+                org.mockito.ArgumentMatchers.any(Instant.class)
+        )).thenReturn(List.of(incoming));
+
+        when(categoryViewService.getEffectiveCategoriesForUser(USER_ID))
+                .thenReturn(List.of(Category.builder()
+                        .id(999L).name("Transfer").categoryType(CategoryType.TRANSFER).build()));
+
+        int result = transferDetectionService.detectTransfers(USER_ID);
+
+        assertEquals(1, result);
+        verify(transactionWriteRepository).linkTransferPair(1L, 2L);
+    }
+
+    @Test
+    void detectTransfersSkipsAlreadyPairedTransactions() {
+        Transaction paired = baseTransaction(1L, 10L, new BigDecimal("-500.00"));
+        paired.setTransferPairId(99L);
+
+        when(transactionReadRepository.findUnpairedByUserId(USER_ID)).thenReturn(List.of(paired));
+
+        int result = transferDetectionService.detectTransfers(USER_ID);
+
+        assertEquals(0, result);
+    }
+
+    @Test
+    void detectTransfersSkipsWhenAccountNotFound() {
+        Transaction tx = baseTransaction(1L, 10L, new BigDecimal("-500.00"));
+
+        when(transactionReadRepository.findUnpairedByUserId(USER_ID)).thenReturn(List.of(tx));
+        when(accountRepository.findById(10L)).thenReturn(Optional.empty());
+
+        int result = transferDetectionService.detectTransfers(USER_ID);
+
+        assertEquals(0, result);
+    }
+
+    @Test
+    void detectTransfersSkipsWhenNoCandidatesAboveThreshold() {
+        Transaction tx = baseTransaction(1L, 10L, new BigDecimal("-500.00"));
+
+        Account account = Account.builder().id(10L).accountType(AccountType.CHECKING).build();
+
+        when(transactionReadRepository.findUnpairedByUserId(USER_ID)).thenReturn(List.of(tx));
+        when(accountRepository.findById(10L)).thenReturn(Optional.of(account));
+        when(transactionReadRepository.findPotentialTransferMatches(
+                org.mockito.ArgumentMatchers.eq(USER_ID),
+                org.mockito.ArgumentMatchers.eq(10L),
+                org.mockito.ArgumentMatchers.eq(new BigDecimal("500.00")),
+                org.mockito.ArgumentMatchers.any(Instant.class),
+                org.mockito.ArgumentMatchers.any(Instant.class)
+        )).thenReturn(List.of());
+
+        int result = transferDetectionService.detectTransfers(USER_ID);
+
+        assertEquals(0, result);
+    }
+
+    @Test
+    void detectTransfersReturnsZeroForEmptyUnpairedList() {
+        when(transactionReadRepository.findUnpairedByUserId(USER_ID)).thenReturn(List.of());
+
+        int result = transferDetectionService.detectTransfers(USER_ID);
+
+        assertEquals(0, result);
+    }
+
+    // --- markAsTransfer success path ---
+
+    @Test
+    void markAsTransferLinksValidPair() {
+        Transaction tx1 = baseTransaction(1L, 10L, new BigDecimal("-100.00"));
+        Transaction tx2 = baseTransaction(2L, 20L, new BigDecimal("100.00"));
+
+        when(transactionReadRepository.findByIdAndUserId(1L, USER_ID)).thenReturn(Optional.of(tx1));
+        when(transactionReadRepository.findByIdAndUserId(2L, USER_ID)).thenReturn(Optional.of(tx2));
+        when(categoryViewService.getEffectiveCategoriesForUser(USER_ID)).thenReturn(List.of());
+
+        transferDetectionService.markAsTransfer(USER_ID, 1L, 2L);
+
+        verify(transactionWriteRepository).linkTransferPair(1L, 2L);
+        assertTrue(tx1.isInternalTransfer());
+        assertTrue(tx2.isInternalTransfer());
+        assertTrue(tx1.isExcludeFromTotals());
+        assertTrue(tx2.isExcludeFromTotals());
+    }
+
     @Test
     void getTransferPairsReturnsGroupedPairs() {
         Transaction outgoing = baseTransaction(1L, 10L, new BigDecimal("-500.00"));
