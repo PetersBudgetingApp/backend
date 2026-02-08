@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 
 @Repository
 @RequiredArgsConstructor
@@ -46,7 +47,7 @@ public class TransactionWriteRepository {
 
         jdbcTemplate.update(sql, params, keyHolder, new String[]{"id"});
 
-        transaction.setId(keyHolder.getKey().longValue());
+        transaction.setId(Objects.requireNonNull(keyHolder.getKey()).longValue());
         transaction.setCreatedAt(now);
         transaction.setUpdatedAt(now);
         return transaction;

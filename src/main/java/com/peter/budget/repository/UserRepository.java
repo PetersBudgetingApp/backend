@@ -13,6 +13,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Objects;
 
 @Repository
 @RequiredArgsConstructor
@@ -31,14 +32,14 @@ public class UserRepository {
     public Optional<User> findById(Long id) {
         String sql = "SELECT * FROM users WHERE id = :id";
         var params = new MapSqlParameterSource("id", id);
-        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
     public Optional<User> findByEmail(String email) {
         String sql = "SELECT * FROM users WHERE email = :email";
         var params = new MapSqlParameterSource("email", email);
-        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -78,7 +79,7 @@ public class UserRepository {
 
         jdbcTemplate.update(sql, params, keyHolder, new String[]{"id"});
 
-        user.setId(keyHolder.getKey().longValue());
+        user.setId(Objects.requireNonNull(keyHolder.getKey()).longValue());
         user.setCreatedAt(now);
         user.setUpdatedAt(now);
         return user;

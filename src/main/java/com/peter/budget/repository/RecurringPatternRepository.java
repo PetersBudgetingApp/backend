@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Objects;
 
 @Repository
 @RequiredArgsConstructor
@@ -49,7 +50,7 @@ public class RecurringPatternRepository {
     public List<RecurringPattern> findByUserId(Long userId) {
         String sql = "SELECT * FROM recurring_patterns WHERE user_id = :userId ORDER BY name";
         var params = new MapSqlParameterSource("userId", userId);
-        return jdbcTemplate.query(sql, params, ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
     }
 
     public List<RecurringPattern> findActiveByUserId(Long userId) {
@@ -59,7 +60,7 @@ public class RecurringPatternRepository {
             ORDER BY name
             """;
         var params = new MapSqlParameterSource("userId", userId);
-        return jdbcTemplate.query(sql, params, ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
     }
 
     public List<RecurringPattern> findUpcomingBills(Long userId, LocalDate startDate, LocalDate endDate) {
@@ -73,7 +74,7 @@ public class RecurringPatternRepository {
                 .addValue("userId", userId)
                 .addValue("startDate", Date.valueOf(startDate))
                 .addValue("endDate", Date.valueOf(endDate));
-        return jdbcTemplate.query(sql, params, ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
     }
 
     public List<RecurringPattern> findBillsForMonth(Long userId, int year, int month) {
@@ -85,7 +86,7 @@ public class RecurringPatternRepository {
     public Optional<RecurringPattern> findById(Long id) {
         String sql = "SELECT * FROM recurring_patterns WHERE id = :id";
         var params = new MapSqlParameterSource("id", id);
-        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -94,7 +95,7 @@ public class RecurringPatternRepository {
         var params = new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("userId", userId);
-        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -106,7 +107,7 @@ public class RecurringPatternRepository {
         var params = new MapSqlParameterSource()
                 .addValue("userId", userId)
                 .addValue("merchantPattern", merchantPattern);
-        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -136,7 +137,7 @@ public class RecurringPatternRepository {
 
         jdbcTemplate.update(sql, params, keyHolder, new String[]{"id"});
 
-        pattern.setId(keyHolder.getKey().longValue());
+        pattern.setId(Objects.requireNonNull(keyHolder.getKey()).longValue());
         pattern.setCreatedAt(now);
         pattern.setUpdatedAt(now);
         return pattern;

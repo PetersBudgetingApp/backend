@@ -2,6 +2,7 @@ package com.peter.budget.service.simplefin;
 
 import com.peter.budget.exception.ApiException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -32,7 +33,7 @@ public class SimpleFinClient {
         try {
             byte[] decoded = Base64.getUrlDecoder().decode(setupToken);
             String claimUrl = new String(decoded, StandardCharsets.UTF_8).trim();
-            URI claimUri = validateSimpleFinUri(claimUrl, false);
+            URI claimUri = java.util.Objects.requireNonNull(validateSimpleFinUri(claimUrl, false));
 
             log.info("Exchanging setup token at claim URL");
 
@@ -91,11 +92,11 @@ public class SimpleFinClient {
             log.debug("Fetching accounts from SimpleFin");
 
             Map<String, Object> response = webClient.get()
-                    .uri(urlBuilder.toString())
+                    .uri(java.util.Objects.requireNonNull(urlBuilder.toString()))
                     .header(HttpHeaders.AUTHORIZATION, authHeader)
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
-                    .bodyToMono(Map.class)
+                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                     .block();
 
             return parseAccountsResponse(response);

@@ -41,7 +41,7 @@ public class BudgetTargetRepository {
                 .addValue("userId", userId)
                 .addValue("monthKey", monthKey);
 
-        return jdbcTemplate.query(sql, params, ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, java.util.Objects.requireNonNull(ROW_MAPPER));
     }
 
     public void replaceMonthTargets(Long userId, String monthKey, List<UpsertBudgetTarget> targets) {
@@ -78,7 +78,7 @@ public class BudgetTargetRepository {
                         .addValue("updatedAt", nowTimestamp))
                 .toArray(MapSqlParameterSource[]::new);
 
-        jdbcTemplate.batchUpdate(insertSql, batch);
+        jdbcTemplate.batchUpdate(insertSql, java.util.Objects.requireNonNull(batch));
     }
 
     public void deleteByUserIdAndMonthKeyAndCategoryId(Long userId, String monthKey, Long categoryId) {

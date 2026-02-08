@@ -14,6 +14,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Objects;
 
 @Repository
 @RequiredArgsConstructor
@@ -24,7 +25,7 @@ public class TransactionReadRepository {
     public List<Transaction> findByAccountId(Long accountId) {
         String sql = "SELECT * FROM transactions WHERE account_id = :accountId ORDER BY posted_at DESC";
         var params = new MapSqlParameterSource("accountId", accountId);
-        return jdbcTemplate.query(sql, params, TransactionRowMappers.TRANSACTION_ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(TransactionRowMappers.TRANSACTION_ROW_MAPPER));
     }
 
     public List<Transaction> findByUserId(Long userId) {
@@ -35,7 +36,7 @@ public class TransactionReadRepository {
             ORDER BY t.posted_at DESC
             """;
         var params = new MapSqlParameterSource("userId", userId);
-        return jdbcTemplate.query(sql, params, TransactionRowMappers.TRANSACTION_ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(TransactionRowMappers.TRANSACTION_ROW_MAPPER));
     }
 
     public List<Transaction> findByUserIdWithFilters(Long userId, boolean includeTransfers,
@@ -88,7 +89,7 @@ public class TransactionReadRepository {
         params.addValue("limit", limit);
         params.addValue("offset", offset);
 
-        return jdbcTemplate.query(sql.toString(), params, TransactionRowMappers.TRANSACTION_ROW_MAPPER);
+        return jdbcTemplate.query(Objects.requireNonNull(sql.toString()), params, Objects.requireNonNull(TransactionRowMappers.TRANSACTION_ROW_MAPPER));
     }
 
     public List<Transaction> findTransfersByUserId(Long userId) {
@@ -99,7 +100,7 @@ public class TransactionReadRepository {
             ORDER BY t.posted_at DESC
             """;
         var params = new MapSqlParameterSource("userId", userId);
-        return jdbcTemplate.query(sql, params, TransactionRowMappers.TRANSACTION_ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(TransactionRowMappers.TRANSACTION_ROW_MAPPER));
     }
 
     public List<Transaction> findByUserIdAndCategorizationRuleId(Long userId, Long ruleId, int limit, int offset) {
@@ -116,13 +117,13 @@ public class TransactionReadRepository {
                 .addValue("ruleId", ruleId)
                 .addValue("limit", limit)
                 .addValue("offset", offset);
-        return jdbcTemplate.query(sql, params, TransactionRowMappers.TRANSACTION_ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(TransactionRowMappers.TRANSACTION_ROW_MAPPER));
     }
 
     public Optional<Transaction> findById(Long id) {
         String sql = "SELECT * FROM transactions WHERE id = :id";
         var params = new MapSqlParameterSource("id", id);
-        var results = jdbcTemplate.query(sql, params, TransactionRowMappers.TRANSACTION_ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(TransactionRowMappers.TRANSACTION_ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -135,7 +136,7 @@ public class TransactionReadRepository {
         var params = new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("userId", userId);
-        var results = jdbcTemplate.query(sql, params, TransactionRowMappers.TRANSACTION_ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(TransactionRowMappers.TRANSACTION_ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -144,7 +145,7 @@ public class TransactionReadRepository {
         var params = new MapSqlParameterSource()
                 .addValue("accountId", accountId)
                 .addValue("externalId", externalId);
-        var results = jdbcTemplate.query(sql, params, TransactionRowMappers.TRANSACTION_ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(TransactionRowMappers.TRANSACTION_ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -167,7 +168,7 @@ public class TransactionReadRepository {
                 .addValue("oppositeAmount", oppositeAmount)
                 .addValue("startDate", Timestamp.from(startDate))
                 .addValue("endDate", Timestamp.from(endDate));
-        return jdbcTemplate.query(sql, params, TransactionRowMappers.TRANSACTION_ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(TransactionRowMappers.TRANSACTION_ROW_MAPPER));
     }
 
     public List<Transaction> findUnpairedByUserId(Long userId) {
@@ -180,7 +181,7 @@ public class TransactionReadRepository {
             ORDER BY t.posted_at DESC
             """;
         var params = new MapSqlParameterSource("userId", userId);
-        return jdbcTemplate.query(sql, params, TransactionRowMappers.TRANSACTION_ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(TransactionRowMappers.TRANSACTION_ROW_MAPPER));
     }
 
     public LocalDate findOldestPostedDateByConnectionId(Long connectionId) {

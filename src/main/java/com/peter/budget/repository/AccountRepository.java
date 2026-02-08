@@ -3,6 +3,8 @@ package com.peter.budget.repository;
 import com.peter.budget.model.entity.Account;
 import com.peter.budget.model.enums.AccountNetWorthCategory;
 import com.peter.budget.model.enums.AccountType;
+
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -16,6 +18,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Objects;
 
 @Repository
 @RequiredArgsConstructor
@@ -23,9 +26,11 @@ public class AccountRepository {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
+    @NotNull
     private static final RowMapper<Account> ROW_MAPPER = (rs, rowNum) -> {
         Timestamp balanceUpdated = rs.getTimestamp("balance_updated_at");
-        return Account.builder()
+        return Objects.requireNonNull(
+            Account.builder()
                 .id(rs.getLong("id"))
                 .userId(rs.getLong("user_id"))
                 .connectionId(rs.getObject("connection_id", Long.class))
@@ -41,25 +46,26 @@ public class AccountRepository {
                 .active(rs.getBoolean("is_active"))
                 .createdAt(rs.getTimestamp("created_at").toInstant())
                 .updatedAt(rs.getTimestamp("updated_at").toInstant())
-                .build();
+                .build()
+            );
     };
 
     public List<Account> findByUserId(Long userId) {
         String sql = "SELECT * FROM accounts WHERE user_id = :userId ORDER BY name";
         var params = new MapSqlParameterSource("userId", userId);
-        return jdbcTemplate.query(sql, params, ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
     }
 
     public List<Account> findActiveByUserId(Long userId) {
         String sql = "SELECT * FROM accounts WHERE user_id = :userId AND is_active = true ORDER BY name";
         var params = new MapSqlParameterSource("userId", userId);
-        return jdbcTemplate.query(sql, params, ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
     }
 
     public Optional<Account> findById(Long id) {
         String sql = "SELECT * FROM accounts WHERE id = :id";
         var params = new MapSqlParameterSource("id", id);
-        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -68,7 +74,7 @@ public class AccountRepository {
         var params = new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("userId", userId);
-        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -77,14 +83,14 @@ public class AccountRepository {
         var params = new MapSqlParameterSource()
                 .addValue("connectionId", connectionId)
                 .addValue("externalId", externalId);
-        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
     public List<Account> findByConnectionId(Long connectionId) {
         String sql = "SELECT * FROM accounts WHERE connection_id = :connectionId ORDER BY name";
         var params = new MapSqlParameterSource("connectionId", connectionId);
-        return jdbcTemplate.query(sql, params, ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
     }
 
     public int countByConnectionId(Long connectionId) {
@@ -140,8 +146,8 @@ public class AccountRepository {
                 .addValue("updatedAt", Timestamp.from(now));
 
         jdbcTemplate.update(sql, params, keyHolder, new String[]{"id"});
-
-        account.setId(keyHolder.getKey().longValue());
+        
+        account.setId(Objects.requireNonNull(keyHolder.getKey()).longValue());
         account.setCreatedAt(now);
         account.setUpdatedAt(now);
         return account;

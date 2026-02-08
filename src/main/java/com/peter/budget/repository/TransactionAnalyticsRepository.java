@@ -10,6 +10,7 @@ import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Objects;
 
 @Repository
 @RequiredArgsConstructor
@@ -46,7 +47,7 @@ public class TransactionAnalyticsRepository {
                 .addValue("startDate", Timestamp.from(startDate.atStartOfDay().toInstant(ZoneOffset.UTC)))
                 .addValue("endDate", Timestamp.from(endDate.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)));
 
-        return jdbcTemplate.queryForObject(sql.toString(), params, BigDecimal.class);
+        return jdbcTemplate.queryForObject(Objects.requireNonNull(sql.toString()), params, BigDecimal.class);
     }
 
     public List<CategorySpendingProjection> sumByCategory(Long userId, LocalDate startDate, LocalDate endDate) {

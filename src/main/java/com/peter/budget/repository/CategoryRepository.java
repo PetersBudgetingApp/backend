@@ -14,6 +14,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Objects;
 
 @Repository
 @RequiredArgsConstructor
@@ -37,7 +38,7 @@ public class CategoryRepository {
 
     public List<Category> findSystemCategories() {
         String sql = "SELECT * FROM categories WHERE user_id IS NULL ORDER BY sort_order, name";
-        return jdbcTemplate.query(sql, ROW_MAPPER);
+        return jdbcTemplate.query(sql, Objects.requireNonNull(ROW_MAPPER));
     }
 
     public List<Category> findByUserId(Long userId) {
@@ -47,7 +48,7 @@ public class CategoryRepository {
             ORDER BY sort_order, name
             """;
         var params = new MapSqlParameterSource("userId", userId);
-        return jdbcTemplate.query(sql, params, ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
     }
 
     public List<Category> findRootCategories(Long userId) {
@@ -57,19 +58,19 @@ public class CategoryRepository {
             ORDER BY sort_order, name
             """;
         var params = new MapSqlParameterSource("userId", userId);
-        return jdbcTemplate.query(sql, params, ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
     }
 
     public List<Category> findByParentId(Long parentId) {
         String sql = "SELECT * FROM categories WHERE parent_id = :parentId ORDER BY sort_order, name";
         var params = new MapSqlParameterSource("parentId", parentId);
-        return jdbcTemplate.query(sql, params, ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
     }
 
     public Optional<Category> findById(Long id) {
         String sql = "SELECT * FROM categories WHERE id = :id";
         var params = new MapSqlParameterSource("id", id);
-        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -81,7 +82,7 @@ public class CategoryRepository {
         var params = new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("userId", userId);
-        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -93,13 +94,13 @@ public class CategoryRepository {
         var params = new MapSqlParameterSource()
                 .addValue("name", name)
                 .addValue("type", type.name());
-        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
     public Optional<Category> findTransferCategory() {
         String sql = "SELECT * FROM categories WHERE category_type = 'TRANSFER' AND user_id IS NULL LIMIT 1";
-        var results = jdbcTemplate.query(sql, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, Objects.requireNonNull(ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -135,7 +136,7 @@ public class CategoryRepository {
 
         jdbcTemplate.update(sql, params, keyHolder, new String[]{"id"});
 
-        category.setId(keyHolder.getKey().longValue());
+        category.setId(Objects.requireNonNull(keyHolder.getKey()).longValue());
         category.setCreatedAt(now);
         category.setUpdatedAt(now);
         return category;

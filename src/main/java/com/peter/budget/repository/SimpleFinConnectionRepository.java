@@ -15,6 +15,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Objects;
 
 @Repository
 @RequiredArgsConstructor
@@ -47,13 +48,13 @@ public class SimpleFinConnectionRepository {
     public List<SimpleFinConnection> findByUserId(Long userId) {
         String sql = "SELECT * FROM simplefin_connections WHERE user_id = :userId ORDER BY created_at";
         var params = new MapSqlParameterSource("userId", userId);
-        return jdbcTemplate.query(sql, params, ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
     }
 
     public Optional<SimpleFinConnection> findById(Long id) {
         String sql = "SELECT * FROM simplefin_connections WHERE id = :id";
         var params = new MapSqlParameterSource("id", id);
-        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -62,7 +63,7 @@ public class SimpleFinConnectionRepository {
         var params = new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("userId", userId);
-        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -77,7 +78,7 @@ public class SimpleFinConnectionRepository {
         var params = new MapSqlParameterSource()
                 .addValue("fourHoursAgo", Timestamp.from(now.minusSeconds(4 * 60 * 60)))
                 .addValue("now", Timestamp.from(now));
-        return jdbcTemplate.query(sql, params, ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
     }
 
     public SimpleFinConnection save(SimpleFinConnection connection) {
@@ -110,7 +111,7 @@ public class SimpleFinConnectionRepository {
 
         jdbcTemplate.update(sql, params, keyHolder, new String[]{"id"});
 
-        connection.setId(keyHolder.getKey().longValue());
+        connection.setId(Objects.requireNonNull(keyHolder.getKey()).longValue());
         connection.setCreatedAt(now);
         connection.setUpdatedAt(now);
         return connection;
