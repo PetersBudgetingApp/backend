@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Objects;
 
 @Repository
 @RequiredArgsConstructor
@@ -31,7 +32,7 @@ public class RefreshTokenRepository {
     public Optional<RefreshToken> findByTokenHash(String tokenHash) {
         String sql = "SELECT * FROM refresh_tokens WHERE token_hash = :tokenHash AND revoked = false";
         var params = new MapSqlParameterSource("tokenHash", tokenHash);
-        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -53,7 +54,7 @@ public class RefreshTokenRepository {
 
         jdbcTemplate.update(sql, params, keyHolder, new String[]{"id"});
 
-        token.setId(keyHolder.getKey().longValue());
+        token.setId(Objects.requireNonNull(keyHolder.getKey()).longValue());
         token.setCreatedAt(now);
         return token;
     }
