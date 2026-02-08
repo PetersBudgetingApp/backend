@@ -22,6 +22,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Objects;
 
 @Repository
 @Slf4j
@@ -38,7 +39,7 @@ public class CategorizationRuleRepository {
             ORDER BY priority DESC, id ASC
             """;
         var params = new MapSqlParameterSource("userId", userId);
-        return jdbcTemplate.query(sql, params, rowMapper());
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(rowMapper()));
     }
 
     public List<CategorizationRule> findByUserId(Long userId) {
@@ -48,13 +49,13 @@ public class CategorizationRuleRepository {
             ORDER BY priority DESC, name
             """;
         var params = new MapSqlParameterSource("userId", userId);
-        return jdbcTemplate.query(sql, params, rowMapper());
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(rowMapper()));
     }
 
     public Optional<CategorizationRule> findById(Long id) {
         String sql = "SELECT * FROM categorization_rules WHERE id = :id";
         var params = new MapSqlParameterSource("id", id);
-        var results = jdbcTemplate.query(sql, params, rowMapper());
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(rowMapper()));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -66,7 +67,7 @@ public class CategorizationRuleRepository {
         var params = new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("userId", userId);
-        var results = jdbcTemplate.query(sql, params, rowMapper());
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(rowMapper()));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -105,7 +106,7 @@ public class CategorizationRuleRepository {
 
         jdbcTemplate.update(sql, params, keyHolder, new String[]{"id"});
 
-        rule.setId(keyHolder.getKey().longValue());
+        rule.setId(Objects.requireNonNull(keyHolder.getKey()).longValue());
         rule.setCreatedAt(now);
         rule.setUpdatedAt(now);
         return rule;

@@ -14,6 +14,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Objects;
 
 @Repository
 @RequiredArgsConstructor
@@ -38,7 +39,7 @@ public class CategoryOverrideRepository {
     public List<CategoryOverride> findByUserId(Long userId) {
         String sql = "SELECT * FROM category_overrides WHERE user_id = :userId";
         var params = new MapSqlParameterSource("userId", userId);
-        return jdbcTemplate.query(sql, params, ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
     }
 
     public Optional<CategoryOverride> findByUserIdAndCategoryId(Long userId, Long categoryId) {
@@ -46,7 +47,7 @@ public class CategoryOverrideRepository {
         var params = new MapSqlParameterSource()
                 .addValue("userId", userId)
                 .addValue("categoryId", categoryId);
-        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -78,7 +79,7 @@ public class CategoryOverrideRepository {
 
         jdbcTemplate.update(sql, params, keyHolder, new String[]{"id"});
 
-        categoryOverride.setId(keyHolder.getKey().longValue());
+        categoryOverride.setId(Objects.requireNonNull(keyHolder.getKey()).longValue());
         categoryOverride.setCreatedAt(now);
         categoryOverride.setUpdatedAt(now);
         return categoryOverride;

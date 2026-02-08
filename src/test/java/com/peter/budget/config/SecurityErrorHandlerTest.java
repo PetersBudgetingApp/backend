@@ -1,5 +1,6 @@
 package com.peter.budget.config;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,7 +35,10 @@ class SecurityErrorHandlerTest {
         assertEquals(401, response.getStatus());
         assertEquals("application/json", response.getContentType());
 
-        Map<String, Object> body = objectMapper.readValue(response.getContentAsString(), Map.class);
+        Map<String, Object> body = objectMapper.readValue(
+            response.getContentAsString(),
+            new TypeReference<Map<String, Object>>() {}
+        );
         assertEquals(401, body.get("status"));
         assertEquals("Authentication required", body.get("message"));
         assertNotNull(body.get("timestamp"));
@@ -47,7 +51,10 @@ class SecurityErrorHandlerTest {
         assertEquals(403, response.getStatus());
         assertEquals("application/json", response.getContentType());
 
-        Map<String, Object> body = objectMapper.readValue(response.getContentAsString(), Map.class);
+        Map<String, Object> body = objectMapper.readValue(
+            response.getContentAsString(),
+            new TypeReference<Map<String, Object>>() {}
+        );
         assertEquals(403, body.get("status"));
         assertEquals("Access denied", body.get("message"));
         assertNotNull(body.get("timestamp"));

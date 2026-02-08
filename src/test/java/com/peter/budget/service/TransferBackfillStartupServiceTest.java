@@ -9,6 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Objects;
 
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -28,7 +29,7 @@ class TransferBackfillStartupServiceTest {
 
     @Test
     void runBackfillOnStartupSkipsWhenDisabled() {
-        ReflectionTestUtils.setField(startupService, "backfillOnStartup", false);
+        ReflectionTestUtils.setField(Objects.requireNonNull(startupService), "backfillOnStartup", false);
 
         startupService.runBackfillOnStartup();
 
@@ -38,7 +39,7 @@ class TransferBackfillStartupServiceTest {
 
     @Test
     void runBackfillOnStartupProcessesAllUsers() {
-        ReflectionTestUtils.setField(startupService, "backfillOnStartup", true);
+        ReflectionTestUtils.setField(Objects.requireNonNull(startupService), "backfillOnStartup", true);
 
         when(userRepository.findAllUserIds()).thenReturn(List.of(1L, 2L));
         when(transferDetectionService.detectTransfers(1L)).thenReturn(3);
@@ -52,7 +53,7 @@ class TransferBackfillStartupServiceTest {
 
     @Test
     void runBackfillOnStartupContinuesAfterFailure() {
-        ReflectionTestUtils.setField(startupService, "backfillOnStartup", true);
+        ReflectionTestUtils.setField(Objects.requireNonNull(startupService), "backfillOnStartup", true);
 
         when(userRepository.findAllUserIds()).thenReturn(List.of(1L, 2L));
         doThrow(new RuntimeException("Error")).when(transferDetectionService).detectTransfers(1L);
@@ -66,7 +67,7 @@ class TransferBackfillStartupServiceTest {
 
     @Test
     void runBackfillOnStartupHandlesEmptyUserList() {
-        ReflectionTestUtils.setField(startupService, "backfillOnStartup", true);
+        ReflectionTestUtils.setField(Objects.requireNonNull(startupService), "backfillOnStartup", true);
 
         when(userRepository.findAllUserIds()).thenReturn(List.of());
 

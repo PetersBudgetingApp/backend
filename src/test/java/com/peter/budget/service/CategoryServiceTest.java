@@ -63,6 +63,9 @@ class CategoryServiceTest {
     @Captor
     private ArgumentCaptor<Category> categoryCaptor;
 
+    @Captor
+    private ArgumentCaptor<List<Long>> idsCaptor;
+
     // --- getCategoriesForUser tests ---
 
     @Test
@@ -357,7 +360,6 @@ class CategoryServiceTest {
 
         categoryService.deleteCategory(USER_ID, ROOT_ID);
 
-        ArgumentCaptor<List<Long>> idsCaptor = ArgumentCaptor.forClass(List.class);
         verify(transactionWriteRepository).clearCategoryForUserAndCategoryIds(eq(USER_ID), idsCaptor.capture());
         List<Long> removedCategoryIds = idsCaptor.getValue();
         assertEquals(Set.of(ROOT_ID, CHILD_ID), new HashSet<>(removedCategoryIds));
@@ -383,7 +385,6 @@ class CategoryServiceTest {
 
         categoryService.deleteCategory(USER_ID, ROOT_ID);
 
-        ArgumentCaptor<List<Long>> idsCaptor = ArgumentCaptor.forClass(List.class);
         verify(transactionWriteRepository).clearCategoryForUserAndCategoryIds(eq(USER_ID), idsCaptor.capture());
         assertEquals(Set.of(ROOT_ID, CHILD_ID), new HashSet<>(idsCaptor.getValue()));
 

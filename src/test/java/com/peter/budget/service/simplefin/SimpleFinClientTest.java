@@ -7,14 +7,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -175,7 +173,6 @@ class SimpleFinClientTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void parseAccountsResponseParsesAccountCorrectly() throws Exception {
         Map<String, Object> accountData = Map.of(
                 "id", "acc-123",
@@ -202,7 +199,6 @@ class SimpleFinClientTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void parseAccountsResponseParsesTransactions() throws Exception {
         Map<String, Object> txData = Map.of(
                 "id", "tx-1",
@@ -276,7 +272,6 @@ class SimpleFinClientTest {
         return (String) method.invoke(client, type);
     }
 
-    @SuppressWarnings("unchecked")
     private SimpleFinClient.SimpleFinAccountsResponse invokeParseAccountsResponse(Map<String, Object> response) throws Exception {
         SimpleFinClient client = createClient();
         Method method = SimpleFinClient.class.getDeclaredMethod("parseAccountsResponse", Map.class);

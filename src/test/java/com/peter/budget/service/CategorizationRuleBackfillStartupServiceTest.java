@@ -10,6 +10,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Objects;
 
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -29,7 +30,7 @@ class CategorizationRuleBackfillStartupServiceTest {
 
     @Test
     void runBackfillOnStartupSkipsWhenDisabled() {
-        ReflectionTestUtils.setField(startupService, "backfillOnStartup", false);
+        ReflectionTestUtils.setField(Objects.requireNonNull(startupService), "backfillOnStartup", false);
 
         startupService.runBackfillOnStartup();
 
@@ -39,7 +40,7 @@ class CategorizationRuleBackfillStartupServiceTest {
 
     @Test
     void runBackfillOnStartupProcessesAllUsers() {
-        ReflectionTestUtils.setField(startupService, "backfillOnStartup", true);
+        ReflectionTestUtils.setField(Objects.requireNonNull(startupService), "backfillOnStartup", true);
 
         when(userRepository.findAllUserIds()).thenReturn(List.of(1L, 2L, 3L));
         when(transactionService.backfillCategorizationRules(org.mockito.ArgumentMatchers.anyLong()))
@@ -59,7 +60,7 @@ class CategorizationRuleBackfillStartupServiceTest {
 
     @Test
     void runBackfillOnStartupContinuesAfterFailure() {
-        ReflectionTestUtils.setField(startupService, "backfillOnStartup", true);
+        ReflectionTestUtils.setField(Objects.requireNonNull(startupService), "backfillOnStartup", true);
 
         when(userRepository.findAllUserIds()).thenReturn(List.of(1L, 2L));
         doThrow(new RuntimeException("DB error")).when(transactionService).backfillCategorizationRules(1L);
@@ -79,7 +80,7 @@ class CategorizationRuleBackfillStartupServiceTest {
 
     @Test
     void runBackfillOnStartupHandlesEmptyUserList() {
-        ReflectionTestUtils.setField(startupService, "backfillOnStartup", true);
+        ReflectionTestUtils.setField(Objects.requireNonNull(startupService), "backfillOnStartup", true);
 
         when(userRepository.findAllUserIds()).thenReturn(List.of());
 

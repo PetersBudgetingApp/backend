@@ -10,9 +10,11 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 
 import java.util.Map;
+import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 
 class GlobalExceptionHandlerTest {
 
@@ -29,10 +31,12 @@ class GlobalExceptionHandlerTest {
 
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleApiException(ex);
 
+        GlobalExceptionHandler.ErrorResponse body = Objects.requireNonNull(response.getBody());
+
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertEquals(404, response.getBody().status());
-        assertEquals("Resource not found", response.getBody().message());
-        assertNotNull(response.getBody().timestamp());
+        assertEquals(404, body.status());
+        assertEquals("Resource not found", body.message());
+        assertNotNull(body.timestamp());
     }
 
     @Test
@@ -41,8 +45,10 @@ class GlobalExceptionHandlerTest {
 
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleApiException(ex);
 
+        GlobalExceptionHandler.ErrorResponse body = Objects.requireNonNull(response.getBody());
+
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertEquals(400, response.getBody().status());
+        assertEquals(400, body.status());
     }
 
     @Test
@@ -51,8 +57,10 @@ class GlobalExceptionHandlerTest {
 
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleApiException(ex);
 
+        GlobalExceptionHandler.ErrorResponse body = Objects.requireNonNull(response.getBody());
+
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
-        assertEquals(401, response.getBody().status());
+        assertEquals(401, body.status());
     }
 
     @Test
@@ -61,8 +69,10 @@ class GlobalExceptionHandlerTest {
 
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleApiException(ex);
 
+        GlobalExceptionHandler.ErrorResponse body = Objects.requireNonNull(response.getBody());
+
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
-        assertEquals(409, response.getBody().status());
+        assertEquals(409, body.status());
     }
 
     @Test
@@ -71,8 +81,10 @@ class GlobalExceptionHandlerTest {
 
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleApiException(ex);
 
+        GlobalExceptionHandler.ErrorResponse body = Objects.requireNonNull(response.getBody());
+
         assertEquals(HttpStatus.TOO_MANY_REQUESTS, response.getStatusCode());
-        assertEquals(429, response.getBody().status());
+        assertEquals(429, body.status());
     }
 
     @Test
@@ -81,10 +93,12 @@ class GlobalExceptionHandlerTest {
 
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleBadCredentials(ex);
 
+        GlobalExceptionHandler.ErrorResponse body = Objects.requireNonNull(response.getBody());
+
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
-        assertEquals(401, response.getBody().status());
-        assertEquals("Invalid email or password", response.getBody().message());
-        assertNotNull(response.getBody().timestamp());
+        assertEquals(401, body.status());
+        assertEquals("Invalid email or password", body.message());
+        assertNotNull(body.timestamp());
     }
 
     @Test
@@ -97,13 +111,15 @@ class GlobalExceptionHandlerTest {
 
         ResponseEntity<Map<String, Object>> response = handler.handleValidationExceptions(ex);
 
+        Map<String, Object> body = Objects.requireNonNull(response.getBody());
+
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertEquals(400, response.getBody().get("status"));
-        assertEquals("Validation failed", response.getBody().get("message"));
-        assertNotNull(response.getBody().get("timestamp"));
+        assertEquals(400, body.get("status"));
+        assertEquals("Validation failed", body.get("message"));
+        assertNotNull(body.get("timestamp"));
 
         @SuppressWarnings("unchecked")
-        Map<String, String> errors = (Map<String, String>) response.getBody().get("errors");
+        Map<String, String> errors = (Map<String, String>) body.get("errors");
         assertEquals("Email is required", errors.get("email"));
         assertEquals("Password must be at least 8 characters", errors.get("password"));
     }
@@ -114,9 +130,11 @@ class GlobalExceptionHandlerTest {
 
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleGenericException(ex);
 
+        GlobalExceptionHandler.ErrorResponse body = Objects.requireNonNull(response.getBody());
+
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-        assertEquals(500, response.getBody().status());
-        assertEquals("An unexpected error occurred", response.getBody().message());
-        assertNotNull(response.getBody().timestamp());
+        assertEquals(500, body.status());
+        assertEquals("An unexpected error occurred", body.message());
+        assertNotNull(body.timestamp());
     }
 }
