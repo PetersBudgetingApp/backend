@@ -97,6 +97,7 @@ public class CategorizationRuleService {
         rule.setActive(request.getActive() != null ? request.getActive() : rule.isActive());
 
         rule = categorizationRuleRepository.save(rule);
+        transactionService.backfillCategorizationRules(userId);
         return toDto(rule);
     }
 

@@ -195,6 +195,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - `PUT /api/v1/categorization-rules/{id}`
   - request DTO: `CategorizationRuleUpsertRequest`
   - `CategorizationRuleController.updateRule` -> `CategorizationRuleService.updateRule`
+  - On update, backend immediately triggers `TransactionService.backfillCategorizationRules` so existing eligible transactions are re-evaluated.
 - `DELETE /api/v1/categorization-rules/{id}`
   - `CategorizationRuleController.deleteRule` -> `CategorizationRuleService.deleteRule`
 - `GET /api/v1/categorization-rules/{id}/transactions`
@@ -248,8 +249,10 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 1. `categorized_by_rule_id` is stored when auto-categorization matches a rule.
 2. Rule matching supports multi-condition `AND`/`OR` logic, including account-id and numeric amount conditions.
 3. Auto-categorization ignores rules whose target category is hidden for that user.
-4. On local/Docker startup, app can backfill existing transactions per user (`app.categorization.backfill-on-startup`).
-5. Manual trigger also exists at `POST /api/v1/categorization-rules/backfill`.
+4. Creating or updating a rule immediately backfills existing non-manually-categorized user transactions.
+5. On local/Docker startup, app can backfill existing transactions per user (`app.categorization.backfill-on-startup`).
+6. Manual trigger also exists at `POST /api/v1/categorization-rules/backfill`.
+7. If a previously auto-categorized transaction no longer matches any active rule, backfill clears both `categorized_by_rule_id` and `category_id`.
 
 ### SimpleFIN setup lifecycle
 1. Setup token is Base64 URL-decoded into claim URL.
@@ -406,3 +409,4 @@ Use `notes_to_agent/_note_template.md` for note structure.
 
 ## Learned Fixes
 - Transfer-linking flows must preserve `transfer_pair_id`, `is_internal_transfer`, and `exclude_from_totals` when applying category updates; otherwise analytics will overcount transfers as income/expense.
+- Rule-backfill unmatch handling must clear both `categorized_by_rule_id` and `category_id`; clearing only rule tracking leaves stale categories that look like rule updates require restart.

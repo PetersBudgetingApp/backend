@@ -274,6 +274,40 @@ class TransactionServiceTest {
         assertFalse(saved.isManuallyCategorized());
     }
 
+    @Test
+    void backfillCategorizationRulesClearsCategoryWhenRuleNoLongerMatches() {
+        Transaction staleAutoCategorized = baseTransaction();
+        staleAutoCategorized.setId(700L);
+        staleAutoCategorized.setDescription("Prime Member payment");
+        staleAutoCategorized.setCategoryId(24L);
+        staleAutoCategorized.setCategorizedByRuleId(39L);
+        staleAutoCategorized.setManuallyCategorized(false);
+
+        when(transactionReadRepository.findByUserId(USER_ID)).thenReturn(List.of(staleAutoCategorized));
+        when(autoCategorizationService.categorize(
+                USER_ID,
+                staleAutoCategorized.getAccountId(),
+                staleAutoCategorized.getAmount(),
+                staleAutoCategorized.getDescription(),
+                staleAutoCategorized.getPayee(),
+                staleAutoCategorized.getMemo()
+        ))
+                .thenReturn(null);
+
+        var result = transactionService.backfillCategorizationRules(USER_ID);
+
+        assertEquals(1, result.getTotalTransactions());
+        assertEquals(1, result.getEligibleTransactions());
+        assertEquals(0, result.getMatchedTransactions());
+        assertEquals(1, result.getUpdatedTransactions());
+
+        verify(transactionWriteRepository).save(transactionCaptor.capture());
+        Transaction saved = transactionCaptor.getValue();
+        assertNull(saved.getCategoryId());
+        assertNull(saved.getCategorizedByRuleId());
+        assertFalse(saved.isManuallyCategorized());
+    }
+
     private Transaction baseTransaction() {
         return Transaction.builder()
                 .id(TRANSACTION_ID)

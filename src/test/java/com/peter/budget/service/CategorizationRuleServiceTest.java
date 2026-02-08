@@ -19,7 +19,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -62,7 +61,7 @@ class CategorizationRuleServiceTest {
     }
 
     @Test
-    void updateRuleDoesNotTriggerBackfill() {
+    void updateRuleTriggersBackfillForExistingTransactions() {
         CategorizationRule existingRule = CategorizationRule.builder()
                 .id(RULE_ID)
                 .userId(USER_ID)
@@ -86,7 +85,7 @@ class CategorizationRuleServiceTest {
 
         categorizationRuleService.updateRule(USER_ID, RULE_ID, request);
 
-        verify(transactionService, never()).backfillCategorizationRules(USER_ID);
+        verify(transactionService).backfillCategorizationRules(USER_ID);
     }
 
     @Test

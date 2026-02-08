@@ -111,6 +111,8 @@ public class TransactionService {
             if (match == null) {
                 if (tx.getCategorizedByRuleId() != null) {
                     tx.setCategorizedByRuleId(null);
+                    tx.setCategoryId(null);
+                    tx.setManuallyCategorized(false);
                     transactionWriteRepository.save(tx);
                     updated++;
                 }
