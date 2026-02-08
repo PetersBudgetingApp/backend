@@ -1,16 +1,17 @@
 package com.peter.budget.exception;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.lang.NonNull;
 
 public class ApiException extends RuntimeException {
-    private final HttpStatus status;
+    private final @NonNull HttpStatus status;
 
-    public ApiException(String message, HttpStatus status) {
+    public ApiException(String message, @NonNull HttpStatus status) {
         super(message);
         this.status = status;
     }
 
-    public HttpStatus getStatus() {
+    public @NonNull HttpStatus getStatus() {
         return status;
     }
 
