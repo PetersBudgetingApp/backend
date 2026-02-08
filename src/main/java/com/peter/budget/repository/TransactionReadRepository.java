@@ -12,6 +12,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 @Repository
@@ -39,6 +40,7 @@ public class TransactionReadRepository {
 
     public List<Transaction> findByUserIdWithFilters(Long userId, boolean includeTransfers,
                                                       LocalDate startDate, LocalDate endDate,
+                                                      String descriptionQuery,
                                                       Long categoryId, boolean uncategorized,
                                                       Long accountId,
                                                       int limit, int offset) {
@@ -62,6 +64,12 @@ public class TransactionReadRepository {
         if (endDate != null) {
             sql.append(" AND t.posted_at < :endDate");
             params.addValue("endDate", Timestamp.from(endDate.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)));
+        }
+
+        String normalizedDescriptionQuery = normalizeDescriptionQuery(descriptionQuery);
+        if (normalizedDescriptionQuery != null) {
+            sql.append(" AND REGEXP_REPLACE(LOWER(COALESCE(t.description, '')), '[^a-z0-9]', '', 'g') LIKE :descriptionQuery");
+            params.addValue("descriptionQuery", "%" + normalizedDescriptionQuery + "%");
         }
 
         if (uncategorized) {
@@ -214,4 +222,16 @@ public class TransactionReadRepository {
     }
 
     public record TransactionCoverageStats(long totalCount, Instant oldestPostedAt, Instant newestPostedAt) {}
+
+    private String normalizeDescriptionQuery(String query) {
+        if (query == null) {
+            return null;
+        }
+
+        String normalized = query
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]", "");
+
+        return normalized.isBlank() ? null : normalized;
+    }
 }

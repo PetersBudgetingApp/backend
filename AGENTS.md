@@ -153,6 +153,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 ### Transactions
 - `GET /api/v1/transactions`
   - `TransactionController.getTransactions` -> `TransactionService.getTransactions` -> `TransactionReadRepository.findByUserIdWithFilters`
+  - Supports optional `descriptionQuery`; matching is normalized to lower-case alphanumeric on both query and transaction description (ignores punctuation/special characters).
 - `GET /api/v1/transactions/coverage`
   - `TransactionController.getTransactionCoverage` -> `TransactionService.getTransactionCoverage` -> `TransactionReadRepository.getCoverageByUserId`
 - `GET /api/v1/transactions/{id}`

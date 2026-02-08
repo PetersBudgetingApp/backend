@@ -38,6 +38,7 @@ public class TransactionService {
 
     public List<TransactionDto> getTransactions(Long userId, boolean includeTransfers,
                                                   LocalDate startDate, LocalDate endDate,
+                                                  String descriptionQuery,
                                                   Long categoryId, boolean uncategorized,
                                                   Long accountId,
                                                   int limit, int offset) {
@@ -46,7 +47,7 @@ public class TransactionService {
         }
 
         List<Transaction> transactions = transactionReadRepository.findByUserIdWithFilters(
-                userId, includeTransfers, startDate, endDate, categoryId, uncategorized, accountId, limit, offset);
+                userId, includeTransfers, startDate, endDate, descriptionQuery, categoryId, uncategorized, accountId, limit, offset);
 
         Map<Long, Account> accountCache = new HashMap<>();
         Map<Long, Category> categoryMap = categoryViewService.getEffectiveCategoryMapForUser(userId);
