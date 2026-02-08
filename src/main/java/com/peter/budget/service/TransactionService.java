@@ -106,7 +106,7 @@ public class TransactionService {
             eligible++;
 
             AutoCategorizationService.CategorizationMatch match = autoCategorizationService.categorize(
-                    userId, tx.getDescription(), tx.getPayee(), tx.getMemo());
+                    userId, tx.getAccountId(), tx.getAmount(), tx.getDescription(), tx.getPayee(), tx.getMemo());
 
             if (match == null) {
                 if (tx.getCategorizedByRuleId() != null) {

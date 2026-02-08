@@ -92,7 +92,7 @@ public class SimpleFinSyncSupport {
 
                 if (tx.getCategoryId() == null && !tx.isManuallyCategorized()) {
                     AutoCategorizationService.CategorizationMatch match = categorizationService.categorize(
-                            account.getUserId(), sfTx.description(), sfTx.payee(), sfTx.memo());
+                            account.getUserId(), account.getId(), sfTx.amount(), sfTx.description(), sfTx.payee(), sfTx.memo());
                     if (match != null) {
                         tx.setCategoryId(match.categoryId());
                         tx.setCategorizedByRuleId(match.ruleId());
@@ -121,7 +121,7 @@ public class SimpleFinSyncSupport {
                         .build();
 
                 AutoCategorizationService.CategorizationMatch match = categorizationService.categorize(
-                        account.getUserId(), sfTx.description(), sfTx.payee(), sfTx.memo());
+                        account.getUserId(), account.getId(), sfTx.amount(), sfTx.description(), sfTx.payee(), sfTx.memo());
                 if (match != null) {
                     tx.setCategoryId(match.categoryId());
                     tx.setCategorizedByRuleId(match.ruleId());

@@ -1,9 +1,15 @@
 package com.peter.budget.repository;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.peter.budget.model.entity.CategorizationRuleCondition;
 import com.peter.budget.model.entity.CategorizationRule;
 import com.peter.budget.model.enums.MatchField;
 import com.peter.budget.model.enums.PatternType;
+import com.peter.budget.model.enums.RuleConditionOperator;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -13,29 +19,17 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
+@Slf4j
 @RequiredArgsConstructor
 public class CategorizationRuleRepository {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
-
-    private static final RowMapper<CategorizationRule> ROW_MAPPER = (rs, rowNum) -> CategorizationRule.builder()
-            .id(rs.getLong("id"))
-            .userId(rs.getObject("user_id", Long.class))
-            .name(rs.getString("name"))
-            .pattern(rs.getString("pattern"))
-            .patternType(PatternType.valueOf(rs.getString("pattern_type")))
-            .matchField(MatchField.valueOf(rs.getString("match_field")))
-            .categoryId(rs.getLong("category_id"))
-            .priority(rs.getInt("priority"))
-            .active(rs.getBoolean("is_active"))
-            .system(rs.getBoolean("is_system"))
-            .createdAt(rs.getTimestamp("created_at").toInstant())
-            .updatedAt(rs.getTimestamp("updated_at").toInstant())
-            .build();
+    private final ObjectMapper objectMapper;
 
     public List<CategorizationRule> findActiveRulesForUser(Long userId) {
         String sql = """
@@ -44,7 +38,7 @@ public class CategorizationRuleRepository {
             ORDER BY priority DESC, id ASC
             """;
         var params = new MapSqlParameterSource("userId", userId);
-        return jdbcTemplate.query(sql, params, ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, rowMapper());
     }
 
     public List<CategorizationRule> findByUserId(Long userId) {
@@ -54,13 +48,13 @@ public class CategorizationRuleRepository {
             ORDER BY priority DESC, name
             """;
         var params = new MapSqlParameterSource("userId", userId);
-        return jdbcTemplate.query(sql, params, ROW_MAPPER);
+        return jdbcTemplate.query(sql, params, rowMapper());
     }
 
     public Optional<CategorizationRule> findById(Long id) {
         String sql = "SELECT * FROM categorization_rules WHERE id = :id";
         var params = new MapSqlParameterSource("id", id);
-        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, rowMapper());
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -72,7 +66,7 @@ public class CategorizationRuleRepository {
         var params = new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("userId", userId);
-        var results = jdbcTemplate.query(sql, params, ROW_MAPPER);
+        var results = jdbcTemplate.query(sql, params, rowMapper());
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
@@ -86,9 +80,9 @@ public class CategorizationRuleRepository {
     private CategorizationRule insert(CategorizationRule rule) {
         String sql = """
             INSERT INTO categorization_rules (user_id, name, pattern, pattern_type, match_field,
-                category_id, priority, is_active, is_system, created_at, updated_at)
+                condition_operator, conditions_json, category_id, priority, is_active, is_system, created_at, updated_at)
             VALUES (:userId, :name, :pattern, :patternType, :matchField,
-                :categoryId, :priority, :isActive, :isSystem, :createdAt, :updatedAt)
+                :conditionOperator, :conditionsJson, :categoryId, :priority, :isActive, :isSystem, :createdAt, :updatedAt)
             """;
 
         Instant now = Instant.now();
@@ -100,6 +94,8 @@ public class CategorizationRuleRepository {
                 .addValue("pattern", rule.getPattern())
                 .addValue("patternType", rule.getPatternType().name())
                 .addValue("matchField", rule.getMatchField().name())
+                .addValue("conditionOperator", getConditionOperator(rule).name())
+                .addValue("conditionsJson", serializeConditions(rule.getConditions()))
                 .addValue("categoryId", rule.getCategoryId())
                 .addValue("priority", rule.getPriority())
                 .addValue("isActive", rule.isActive())
@@ -119,7 +115,8 @@ public class CategorizationRuleRepository {
         String sql = """
             UPDATE categorization_rules SET
                 name = :name, pattern = :pattern, pattern_type = :patternType,
-                match_field = :matchField, category_id = :categoryId, priority = :priority,
+                match_field = :matchField, condition_operator = :conditionOperator, conditions_json = :conditionsJson,
+                category_id = :categoryId, priority = :priority,
                 is_active = :isActive, updated_at = :updatedAt
             WHERE id = :id
             """;
@@ -131,6 +128,8 @@ public class CategorizationRuleRepository {
                 .addValue("pattern", rule.getPattern())
                 .addValue("patternType", rule.getPatternType().name())
                 .addValue("matchField", rule.getMatchField().name())
+                .addValue("conditionOperator", getConditionOperator(rule).name())
+                .addValue("conditionsJson", serializeConditions(rule.getConditions()))
                 .addValue("categoryId", rule.getCategoryId())
                 .addValue("priority", rule.getPriority())
                 .addValue("isActive", rule.isActive())
@@ -160,5 +159,62 @@ public class CategorizationRuleRepository {
                 .addValue("userId", userId)
                 .addValue("categoryIds", categoryIds);
         jdbcTemplate.update(sql, params);
+    }
+
+    private RowMapper<CategorizationRule> rowMapper() {
+        return (rs, rowNum) -> {
+            String operator = rs.getString("condition_operator");
+
+            return CategorizationRule.builder()
+                    .id(rs.getLong("id"))
+                    .userId(rs.getObject("user_id", Long.class))
+                    .name(rs.getString("name"))
+                    .pattern(rs.getString("pattern"))
+                    .patternType(PatternType.valueOf(rs.getString("pattern_type")))
+                    .matchField(MatchField.valueOf(rs.getString("match_field")))
+                    .conditionOperator(operator == null
+                            ? RuleConditionOperator.AND
+                            : RuleConditionOperator.valueOf(operator))
+                    .conditions(parseConditions(rs.getString("conditions_json")))
+                    .categoryId(rs.getLong("category_id"))
+                    .priority(rs.getInt("priority"))
+                    .active(rs.getBoolean("is_active"))
+                    .system(rs.getBoolean("is_system"))
+                    .createdAt(rs.getTimestamp("created_at").toInstant())
+                    .updatedAt(rs.getTimestamp("updated_at").toInstant())
+                    .build();
+        };
+    }
+
+    private RuleConditionOperator getConditionOperator(CategorizationRule rule) {
+        return rule.getConditionOperator() == null ? RuleConditionOperator.AND : rule.getConditionOperator();
+    }
+
+    private String serializeConditions(List<CategorizationRuleCondition> conditions) {
+        if (conditions == null || conditions.isEmpty()) {
+            return null;
+        }
+
+        try {
+            return objectMapper.writeValueAsString(conditions);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Failed to serialize categorization rule conditions", exception);
+        }
+    }
+
+    private List<CategorizationRuleCondition> parseConditions(String conditionsJson) {
+        if (conditionsJson == null || conditionsJson.isBlank()) {
+            return Collections.emptyList();
+        }
+
+        try {
+            return objectMapper.readValue(
+                    conditionsJson,
+                    new TypeReference<List<CategorizationRuleCondition>>() {}
+            );
+        } catch (JsonProcessingException exception) {
+            log.warn("Failed to parse categorization rule conditions, defaulting to empty condition list", exception);
+            return Collections.emptyList();
+        }
     }
 }

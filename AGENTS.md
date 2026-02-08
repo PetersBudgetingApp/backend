@@ -189,6 +189,8 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - `POST /api/v1/categorization-rules`
   - request DTO: `CategorizationRuleUpsertRequest`
   - `CategorizationRuleController.createRule` -> `CategorizationRuleService.createRule`
+  - Rule payload supports chained `conditions[]` plus `conditionOperator` (`AND`/`OR`).
+  - Condition fields now include text fields plus `ACCOUNT` and `AMOUNT`.
   - On create, backend immediately triggers `TransactionService.backfillCategorizationRules` so existing eligible transactions are re-evaluated.
 - `PUT /api/v1/categorization-rules/{id}`
   - request DTO: `CategorizationRuleUpsertRequest`
@@ -244,9 +246,10 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 
 ### Categorization rule tracking backfill lifecycle
 1. `categorized_by_rule_id` is stored when auto-categorization matches a rule.
-2. Auto-categorization ignores rules whose target category is hidden for that user.
-3. On local/Docker startup, app can backfill existing transactions per user (`app.categorization.backfill-on-startup`).
-4. Manual trigger also exists at `POST /api/v1/categorization-rules/backfill`.
+2. Rule matching supports multi-condition `AND`/`OR` logic, including account-id and numeric amount conditions.
+3. Auto-categorization ignores rules whose target category is hidden for that user.
+4. On local/Docker startup, app can backfill existing transactions per user (`app.categorization.backfill-on-startup`).
+5. Manual trigger also exists at `POST /api/v1/categorization-rules/backfill`.
 
 ### SimpleFIN setup lifecycle
 1. Setup token is Base64 URL-decoded into claim URL.

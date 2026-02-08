@@ -250,7 +250,14 @@ class TransactionServiceTest {
         manual.setManuallyCategorized(true);
 
         when(transactionReadRepository.findByUserId(USER_ID)).thenReturn(List.of(matching, manual));
-        when(autoCategorizationService.categorize(USER_ID, matching.getDescription(), matching.getPayee(), matching.getMemo()))
+        when(autoCategorizationService.categorize(
+                USER_ID,
+                matching.getAccountId(),
+                matching.getAmount(),
+                matching.getDescription(),
+                matching.getPayee(),
+                matching.getMemo()
+        ))
                 .thenReturn(new AutoCategorizationService.CategorizationMatch(39L, 24L));
 
         var result = transactionService.backfillCategorizationRules(USER_ID);
