@@ -159,4 +159,10 @@ public class TransactionWriteRepository {
 
         jdbcTemplate.update(sql, params);
     }
+
+    public void deleteById(Long id) {
+        String sql = "DELETE FROM transactions WHERE id = :id";
+        var params = new MapSqlParameterSource("id", id);
+        jdbcTemplate.update(sql, params);
+    }
 }

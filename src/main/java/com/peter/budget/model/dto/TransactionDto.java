@@ -31,4 +31,5 @@ public class TransactionDto {
     private String transferPairAccountName;
     private boolean recurring;
     private String notes;
+    private boolean manualEntry;
 }

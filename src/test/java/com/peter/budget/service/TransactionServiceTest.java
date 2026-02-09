@@ -1,6 +1,7 @@
 package com.peter.budget.service;
 
 import com.peter.budget.exception.ApiException;
+import com.peter.budget.model.dto.TransactionCreateRequest;
 import com.peter.budget.model.dto.TransactionDto;
 import com.peter.budget.model.dto.TransactionUpdateRequest;
 import com.peter.budget.model.entity.Account;
@@ -23,7 +24,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -81,6 +84,117 @@ class TransactionServiceTest {
                         .build()));
         lenient().when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID))
                 .thenReturn(Map.of());
+    }
+
+    @Test
+    void createTransactionCreatesManuallyCategorizedTransactionWhenCategoryProvided() {
+        Account account = Account.builder()
+                .id(ACCOUNT_ID)
+                .userId(USER_ID)
+                .name("Checking")
+                .accountType(AccountType.CHECKING)
+                .build();
+        Category groceries = Category.builder()
+                .id(42L)
+                .name("Groceries")
+                .categoryType(CategoryType.EXPENSE)
+                .system(false)
+                .build();
+
+        when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID)).thenReturn(Optional.of(account));
+        when(categoryViewService.getEffectiveCategoryByIdForUser(USER_ID, 42L)).thenReturn(Optional.of(groceries));
+        when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID)).thenReturn(Map.of(42L, groceries));
+
+        TransactionCreateRequest request = new TransactionCreateRequest();
+        request.setAccountId(ACCOUNT_ID);
+        request.setPostedDate(LocalDate.parse("2026-02-05"));
+        request.setTransactedDate(LocalDate.parse("2026-02-04"));
+        request.setAmount(new BigDecimal("-74.33"));
+        request.setDescription(" Grocery Store ");
+        request.setPayee(" Main Street Market ");
+        request.setMemo("Weekly run");
+        request.setCategoryId(42L);
+        request.setPending(true);
+        request.setExcludeFromTotals(true);
+        request.setNotes("Added manually");
+
+        TransactionDto result = transactionService.createTransaction(USER_ID, request);
+
+        verify(transactionWriteRepository).save(transactionCaptor.capture());
+        Transaction saved = transactionCaptor.getValue();
+        assertEquals(ACCOUNT_ID, saved.getAccountId());
+        assertEquals(Instant.parse("2026-02-05T12:00:00Z"), saved.getPostedAt());
+        assertEquals(Instant.parse("2026-02-04T12:00:00Z"), saved.getTransactedAt());
+        assertEquals(new BigDecimal("-74.33"), saved.getAmount());
+        assertEquals("Grocery Store", saved.getDescription());
+        assertEquals("Main Street Market", saved.getPayee());
+        assertEquals(42L, saved.getCategoryId());
+        assertTrue(saved.isManuallyCategorized());
+        assertNull(saved.getCategorizedByRuleId());
+        assertTrue(saved.isPending());
+        assertTrue(saved.isExcludeFromTotals());
+        assertEquals("Added manually", saved.getNotes());
+        assertNotNull(result.getCategory());
+        assertEquals(42L, result.getCategory().getId());
+    }
+
+    @Test
+    void createTransactionAutoCategorizesWhenCategoryNotProvided() {
+        Account account = Account.builder()
+                .id(ACCOUNT_ID)
+                .userId(USER_ID)
+                .name("Checking")
+                .accountType(AccountType.CHECKING)
+                .build();
+        Category autoCategory = Category.builder()
+                .id(77L)
+                .name("Coffee")
+                .categoryType(CategoryType.EXPENSE)
+                .system(false)
+                .build();
+
+        when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID)).thenReturn(Optional.of(account));
+        when(autoCategorizationService.categorize(USER_ID, ACCOUNT_ID, new BigDecimal("-8.50"), "Coffee shop", null, null))
+                .thenReturn(new AutoCategorizationService.CategorizationMatch(900L, 77L));
+        when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID)).thenReturn(Map.of(77L, autoCategory));
+
+        TransactionCreateRequest request = new TransactionCreateRequest();
+        request.setAccountId(ACCOUNT_ID);
+        request.setPostedDate(LocalDate.parse("2026-02-06"));
+        request.setAmount(new BigDecimal("-8.50"));
+        request.setDescription("Coffee shop");
+
+        TransactionDto result = transactionService.createTransaction(USER_ID, request);
+
+        verify(transactionWriteRepository).save(transactionCaptor.capture());
+        Transaction saved = transactionCaptor.getValue();
+        assertEquals(77L, saved.getCategoryId());
+        assertEquals(900L, saved.getCategorizedByRuleId());
+        assertFalse(saved.isManuallyCategorized());
+        assertNotNull(result.getCategory());
+        assertEquals(77L, result.getCategory().getId());
+    }
+
+    @Test
+    void createTransactionRejectsZeroAmount() {
+        when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID)).thenReturn(Optional.of(Account.builder()
+                .id(ACCOUNT_ID)
+                .userId(USER_ID)
+                .build()));
+
+        TransactionCreateRequest request = new TransactionCreateRequest();
+        request.setAccountId(ACCOUNT_ID);
+        request.setPostedDate(LocalDate.parse("2026-02-06"));
+        request.setAmount(BigDecimal.ZERO);
+        request.setDescription("Invalid amount");
+
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> transactionService.createTransaction(USER_ID, request)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verify(transactionWriteRepository, never()).save(any(Transaction.class));
     }
 
     @Test
@@ -343,6 +457,51 @@ class TransactionServiceTest {
         );
 
         assertEquals(HttpStatus.NOT_FOUND, exception.getStatus());
+    }
+
+    @Test
+    void deleteTransactionDeletesManualEntry() {
+        Transaction manual = baseTransaction();
+        manual.setExternalId(null);
+
+        when(transactionReadRepository.findByIdAndUserId(TRANSACTION_ID, USER_ID))
+                .thenReturn(Optional.of(manual));
+
+        transactionService.deleteTransaction(USER_ID, TRANSACTION_ID);
+
+        verify(transactionWriteRepository).deleteById(TRANSACTION_ID);
+        verify(transferDetectionService, never()).unlinkTransfer(any(Long.class), any(Long.class));
+    }
+
+    @Test
+    void deleteTransactionRejectsImportedEntry() {
+        Transaction imported = baseTransaction();
+        imported.setExternalId("sf_123");
+
+        when(transactionReadRepository.findByIdAndUserId(TRANSACTION_ID, USER_ID))
+                .thenReturn(Optional.of(imported));
+
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> transactionService.deleteTransaction(USER_ID, TRANSACTION_ID)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verify(transactionWriteRepository, never()).deleteById(any(Long.class));
+    }
+
+    @Test
+    void deleteTransactionUnlinksTransferPairBeforeDelete() {
+        Transaction manualTransfer = baseTransaction();
+        manualTransfer.setTransferPairId(222L);
+
+        when(transactionReadRepository.findByIdAndUserId(TRANSACTION_ID, USER_ID))
+                .thenReturn(Optional.of(manualTransfer));
+
+        transactionService.deleteTransaction(USER_ID, TRANSACTION_ID);
+
+        verify(transferDetectionService).unlinkTransfer(USER_ID, TRANSACTION_ID);
+        verify(transactionWriteRepository).deleteById(TRANSACTION_ID);
     }
 
     // --- Delegation methods ---

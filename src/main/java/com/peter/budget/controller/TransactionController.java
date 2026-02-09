@@ -4,13 +4,16 @@ import com.peter.budget.config.JwtAuthFilter;
 import com.peter.budget.model.dto.ErrorResponse;
 import com.peter.budget.model.dto.MarkTransferRequest;
 import com.peter.budget.model.dto.MessageResponse;
+import com.peter.budget.model.dto.TransactionCreateRequest;
 import com.peter.budget.model.dto.TransactionDto;
 import com.peter.budget.model.dto.TransactionCoverageDto;
 import com.peter.budget.model.dto.TransactionUpdateRequest;
 import com.peter.budget.model.dto.TransferPairDto;
 import com.peter.budget.service.TransactionService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -57,6 +60,14 @@ public class TransactionController {
         return ResponseEntity.ok(transaction);
     }
 
+    @PostMapping
+    public ResponseEntity<TransactionDto> createTransaction(
+            @AuthenticationPrincipal JwtAuthFilter.UserPrincipal principal,
+            @Valid @RequestBody TransactionCreateRequest request) {
+        TransactionDto transaction = transactionService.createTransaction(principal.userId(), request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(transaction);
+    }
+
     @PatchMapping("/{id}")
     public ResponseEntity<TransactionDto> updateTransaction(
             @AuthenticationPrincipal JwtAuthFilter.UserPrincipal principal,
@@ -64,6 +75,14 @@ public class TransactionController {
             @RequestBody TransactionUpdateRequest request) {
         TransactionDto transaction = transactionService.updateTransaction(principal.userId(), id, request);
         return ResponseEntity.ok(transaction);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteTransaction(
+            @AuthenticationPrincipal JwtAuthFilter.UserPrincipal principal,
+            @PathVariable Long id) {
+        transactionService.deleteTransaction(principal.userId(), id);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/transfers")

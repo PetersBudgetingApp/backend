@@ -3,6 +3,7 @@ package com.peter.budget.service;
 import com.peter.budget.exception.ApiException;
 import com.peter.budget.model.dto.CategoryDto;
 import com.peter.budget.model.dto.CategorizationRuleBackfillResultDto;
+import com.peter.budget.model.dto.TransactionCreateRequest;
 import com.peter.budget.model.dto.TransactionCoverageDto;
 import com.peter.budget.model.dto.TransactionDto;
 import com.peter.budget.model.dto.TransactionUpdateRequest;
@@ -18,7 +19,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +68,62 @@ public class TransactionService {
         Map<Long, Category> categoryMap = categoryViewService.getEffectiveCategoryMapForUser(userId);
 
         return toDto(tx, accountCache, categoryMap);
+    }
+
+    @Transactional
+    public TransactionDto createTransaction(Long userId, TransactionCreateRequest request) {
+        Account account = accountRepository.findByIdAndUserId(request.getAccountId(), userId)
+                .orElseThrow(() -> ApiException.notFound("Account not found"));
+
+        if (request.getAmount().compareTo(BigDecimal.ZERO) == 0) {
+            throw ApiException.badRequest("Amount must be non-zero");
+        }
+
+        Long categoryId = request.getCategoryId();
+        if (categoryId != null) {
+            categoryViewService.getEffectiveCategoryByIdForUser(userId, categoryId)
+                    .orElseThrow(() -> ApiException.notFound("Category not found"));
+        }
+
+        String description = request.getDescription().trim();
+        String payee = normalizeOptionalText(request.getPayee());
+        String memo = normalizeOptionalText(request.getMemo());
+
+        Transaction tx = Transaction.builder()
+                .accountId(account.getId())
+                .postedAt(toCanonicalDateInstant(request.getPostedDate()))
+                .transactedAt(request.getTransactedDate() != null
+                        ? toCanonicalDateInstant(request.getTransactedDate())
+                        : null)
+                .amount(request.getAmount())
+                .pending(request.isPending())
+                .description(description)
+                .payee(payee)
+                .memo(memo)
+                .excludeFromTotals(Boolean.TRUE.equals(request.getExcludeFromTotals()))
+                .notes(normalizeOptionalText(request.getNotes()))
+                .build();
+
+        if (categoryId != null) {
+            tx.setCategoryId(categoryId);
+            tx.setCategorizedByRuleId(null);
+            tx.setManuallyCategorized(true);
+        } else {
+            AutoCategorizationService.CategorizationMatch match = autoCategorizationService.categorize(
+                    userId, account.getId(), request.getAmount(), description, payee, memo);
+
+            if (match != null) {
+                tx.setCategoryId(match.categoryId());
+                tx.setCategorizedByRuleId(match.ruleId());
+                tx.setManuallyCategorized(false);
+            }
+        }
+
+        Transaction saved = transactionWriteRepository.save(tx);
+
+        Map<Long, Account> accountCache = new HashMap<>();
+        Map<Long, Category> categoryMap = categoryViewService.getEffectiveCategoryMapForUser(userId);
+        return toDto(saved, accountCache, categoryMap);
     }
 
     public List<TransactionDto> getTransactionsForCategorizationRule(Long userId, Long ruleId, int limit, int offset) {
@@ -179,6 +238,22 @@ public class TransactionService {
         return toDto(tx, accountCache, categoryMap);
     }
 
+    @Transactional
+    public void deleteTransaction(Long userId, Long transactionId) {
+        Transaction tx = transactionReadRepository.findByIdAndUserId(transactionId, userId)
+                .orElseThrow(() -> ApiException.notFound("Transaction not found"));
+
+        if (tx.getExternalId() != null) {
+            throw ApiException.badRequest("Only manually created transactions can be deleted");
+        }
+
+        if (tx.getTransferPairId() != null) {
+            transferDetectionService.unlinkTransfer(userId, transactionId);
+        }
+
+        transactionWriteRepository.deleteById(transactionId);
+    }
+
     public List<TransferPairDto> getTransfers(Long userId) {
         return transferDetectionService.getTransferPairs(userId);
     }
@@ -233,6 +308,7 @@ public class TransactionService {
                 .transferPairAccountName(transferPairAccountName)
                 .recurring(tx.isRecurring())
                 .notes(tx.getNotes())
+                .manualEntry(tx.getExternalId() == null)
                 .build();
     }
 
@@ -246,5 +322,18 @@ public class TransactionService {
                 .categoryType(category.getCategoryType())
                 .system(category.isSystem())
                 .build();
+    }
+
+    private String normalizeOptionalText(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private java.time.Instant toCanonicalDateInstant(LocalDate date) {
+        // Noon UTC avoids prior-day rendering for UTC-negative browser time zones.
+        return date.atTime(12, 0).toInstant(ZoneOffset.UTC);
     }
 }

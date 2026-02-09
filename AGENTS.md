@@ -154,12 +154,21 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - `GET /api/v1/transactions`
   - `TransactionController.getTransactions` -> `TransactionService.getTransactions` -> `TransactionReadRepository.findByUserIdWithFilters`
   - Supports optional `descriptionQuery`; matching is normalized to lower-case alphanumeric on both query and transaction description (ignores punctuation/special characters).
+- `POST /api/v1/transactions`
+  - request DTO: `TransactionCreateRequest`
+  - `TransactionController.createTransaction` -> `TransactionService.createTransaction` -> `TransactionWriteRepository.save`
+  - Validates account ownership and optional category visibility for the authenticated user.
+  - If `categoryId` is omitted, auto-categorization rules are evaluated before save; if provided, transaction is marked manually categorized.
 - `GET /api/v1/transactions/coverage`
   - `TransactionController.getTransactionCoverage` -> `TransactionService.getTransactionCoverage` -> `TransactionReadRepository.getCoverageByUserId`
 - `GET /api/v1/transactions/{id}`
   - `TransactionController.getTransaction` -> `TransactionService.getTransaction`
 - `PATCH /api/v1/transactions/{id}`
   - `TransactionController.updateTransaction` -> `TransactionService.updateTransaction` -> `TransactionWriteRepository.save`
+- `DELETE /api/v1/transactions/{id}`
+  - `TransactionController.deleteTransaction` -> `TransactionService.deleteTransaction` -> `TransactionWriteRepository.deleteById`
+  - Only manual-entry transactions are deletable (`external_id IS NULL`); imported transactions return `400`.
+  - If transaction belongs to a transfer pair, backend unlinks the pair before delete.
 - `GET /api/v1/transactions/transfers`
   - `TransactionController.getTransfers` -> `TransactionService.getTransfers` -> `TransferDetectionService.getTransferPairs`
 - `POST /api/v1/transactions/{id}/mark-as-transfer`
@@ -254,6 +263,20 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 6. Manual trigger also exists at `POST /api/v1/categorization-rules/backfill`.
 7. If a previously auto-categorized transaction no longer matches any active rule, backfill clears both `categorized_by_rule_id` and `category_id`.
 
+### Manual transaction creation lifecycle
+1. User submits `POST /api/v1/transactions` with account/date/amount/description and optional fields.
+2. Backend validates account belongs to user and optional category is visible to that user.
+3. If category is supplied, transaction is stored as manually categorized.
+4. If category is omitted, backend attempts auto-categorization and stores `categorized_by_rule_id` when matched.
+5. Persisted transaction is returned as the same `TransactionDto` contract used by list/detail endpoints.
+
+### Manual transaction deletion lifecycle
+1. User requests `DELETE /api/v1/transactions/{id}`.
+2. Backend verifies the transaction belongs to the authenticated user.
+3. Backend rejects deletion for imported entries (`external_id` present).
+4. If paired as transfer, backend unlinks transfer flags from both sides first.
+5. Transaction row is deleted and endpoint returns `204 No Content`.
+
 ### SimpleFIN setup lifecycle
 1. Setup token is Base64 URL-decoded into claim URL.
 2. Claim URL is validated to be HTTPS and under `simplefin.org` host.
@@ -331,7 +354,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
   - auth endpoints
   - connections endpoints
   - accounts list + summary
-  - transactions list/coverage/update
+  - transactions list/create/coverage/update/delete
   - categories CRUD/list
   - analytics spending/cashflow (trends endpoint exists, not currently wired to visible dashboard chart)
   - budgets month read/write/delete
