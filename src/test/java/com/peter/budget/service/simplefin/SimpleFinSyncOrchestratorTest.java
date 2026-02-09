@@ -10,6 +10,7 @@ import com.peter.budget.repository.SimpleFinConnectionRepository;
 import com.peter.budget.repository.TransactionReadRepository;
 import com.peter.budget.service.EncryptionService;
 import com.peter.budget.service.TransferDetectionService;
+import org.jasypt.exceptions.EncryptionOperationNotPossibleException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -263,6 +265,25 @@ class SimpleFinSyncOrchestratorTest {
         );
 
         assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatus());
+    }
+
+    @Test
+    void syncConnectionReturnsBadRequestWhenAccessUrlCannotBeDecrypted() {
+        SimpleFinConnection connection = baseConnection();
+        when(connectionRepository.findByIdAndUserId(CONNECTION_ID, USER_ID))
+                .thenReturn(Optional.of(connection));
+        when(connectionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(encryptionService.decrypt("encrypted-url"))
+                .thenThrow(new EncryptionOperationNotPossibleException());
+
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> orchestrator.syncConnection(USER_ID, CONNECTION_ID)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        assertTrue(exception.getMessage().contains("Unable to decrypt saved SimpleFIN credentials"));
+        verify(simpleFinClient, never()).fetchAccounts(any(), any(), any());
     }
 
     @Test

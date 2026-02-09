@@ -11,8 +11,11 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 COPY --from=build /app/target /app/target
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+
+RUN chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 8080
 ENV SPRING_PROFILES_ACTIVE=local
 
-ENTRYPOINT ["sh", "-c", "java -jar $(find /app/target -maxdepth 1 -name '*.jar' ! -name '*original*' | head -n 1)"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

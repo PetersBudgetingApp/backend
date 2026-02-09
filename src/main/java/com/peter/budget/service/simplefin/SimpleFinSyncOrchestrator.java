@@ -12,6 +12,7 @@ import com.peter.budget.service.EncryptionService;
 import com.peter.budget.service.TransferDetectionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jasypt.exceptions.EncryptionOperationNotPossibleException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +23,8 @@ import java.time.LocalDate;
 @Service
 @RequiredArgsConstructor
 public class SimpleFinSyncOrchestrator {
+    private static final String SIMPLEFIN_CREDENTIALS_ERROR =
+            "Unable to decrypt saved SimpleFIN credentials. Reconnect this institution or restore the original ENCRYPTION_SECRET.";
 
     private final SimpleFinClient simpleFinClient;
     private final SimpleFinConnectionRepository connectionRepository;
@@ -143,6 +146,14 @@ public class SimpleFinSyncOrchestrator {
                     .transfersDetected(transfersDetected)
                     .syncedAt(Instant.now())
                     .build();
+        } catch (EncryptionOperationNotPossibleException e) {
+            log.warn("Sync failed for connection {}: encrypted access URL could not be decrypted", connectionId);
+
+            connection.setSyncStatus(SyncStatus.FAILED);
+            connection.setErrorMessage(SIMPLEFIN_CREDENTIALS_ERROR);
+            connectionRepository.save(connection);
+
+            throw ApiException.badRequest(SIMPLEFIN_CREDENTIALS_ERROR);
         } catch (ApiException e) {
             log.warn("Sync failed for connection {}: {}", connectionId, e.getMessage());
 
@@ -153,12 +164,13 @@ public class SimpleFinSyncOrchestrator {
             throw e;
         } catch (Exception e) {
             log.error("Sync failed for connection {}", connectionId, e);
+            String safeMessage = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
 
             connection.setSyncStatus(SyncStatus.FAILED);
-            connection.setErrorMessage(e.getMessage());
+            connection.setErrorMessage(safeMessage);
             connectionRepository.save(connection);
 
-            throw ApiException.internal("Sync failed: " + e.getMessage());
+            throw ApiException.internal("Sync failed: " + safeMessage);
         }
     }
 }
