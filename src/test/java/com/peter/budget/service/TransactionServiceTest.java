@@ -311,41 +311,41 @@ class TransactionServiceTest {
     @Test
     void getTransactionsForwardsUncategorizedFilter() {
         when(transactionReadRepository.findByUserIdWithFilters(
-                USER_ID, false, null, null, null, null, true, null, 100, 0))
+                USER_ID, false, null, null, null, null, true, null, 100, 0, false))
                 .thenReturn(List.of(baseTransaction()));
 
         List<TransactionDto> result = transactionService.getTransactions(
-                USER_ID, false, null, null, null, null, true, null, 100, 0);
+                USER_ID, false, null, null, null, null, true, null, 100, 0, "desc");
 
         assertEquals(1, result.size());
         verify(transactionReadRepository).findByUserIdWithFilters(
-                USER_ID, false, null, null, null, null, true, null, 100, 0);
+                USER_ID, false, null, null, null, null, true, null, 100, 0, false);
     }
 
     @Test
     void getTransactionsForwardsDescriptionQueryFilter() {
         when(transactionReadRepository.findByUserIdWithFilters(
-                USER_ID, false, null, null, "Coffee #123!", null, false, null, 100, 0))
+                USER_ID, false, null, null, "Coffee #123!", null, false, null, 100, 0, false))
                 .thenReturn(List.of(baseTransaction()));
 
         List<TransactionDto> result = transactionService.getTransactions(
-                USER_ID, false, null, null, "Coffee #123!", null, false, null, 100, 0);
+                USER_ID, false, null, null, "Coffee #123!", null, false, null, 100, 0, "desc");
 
         assertEquals(1, result.size());
         verify(transactionReadRepository).findByUserIdWithFilters(
-                USER_ID, false, null, null, "Coffee #123!", null, false, null, 100, 0);
+                USER_ID, false, null, null, "Coffee #123!", null, false, null, 100, 0, false);
     }
 
     @Test
     void getTransactionsRejectsCategoryIdWithUncategorizedFilter() {
         ApiException exception = assertThrows(
                 ApiException.class,
-                () -> transactionService.getTransactions(USER_ID, false, null, null, null, 12L, true, null, 100, 0)
+                () -> transactionService.getTransactions(USER_ID, false, null, null, null, 12L, true, null, 100, 0, "desc")
         );
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
         verify(transactionReadRepository, never()).findByUserIdWithFilters(
-                eq(USER_ID), eq(false), eq(null), eq(null), eq(null), eq(12L), eq(true), eq(null), eq(100), eq(0));
+                eq(USER_ID), eq(false), eq(null), eq(null), eq(null), eq(12L), eq(true), eq(null), eq(100), eq(0), eq(false));
     }
 
     // --- getTransaction tests ---

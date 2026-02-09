@@ -39,9 +39,10 @@ public class TransactionController {
             @RequestParam(defaultValue = "false") boolean uncategorized,
             @RequestParam(required = false) Long accountId,
             @RequestParam(defaultValue = "100") int limit,
-            @RequestParam(defaultValue = "0") int offset) {
+            @RequestParam(defaultValue = "0") int offset,
+            @RequestParam(defaultValue = "desc") String sortDirection) {
         List<TransactionDto> transactions = transactionService.getTransactions(
-                principal.userId(), includeTransfers, startDate, endDate, descriptionQuery, categoryId, uncategorized, accountId, limit, offset);
+                principal.userId(), includeTransfers, startDate, endDate, descriptionQuery, categoryId, uncategorized, accountId, limit, offset, sortDirection);
         return ResponseEntity.ok(transactions);
     }
 

@@ -44,7 +44,7 @@ public class TransactionReadRepository {
                                                       String descriptionQuery,
                                                       Long categoryId, boolean uncategorized,
                                                       Long accountId,
-                                                      int limit, int offset) {
+                                                      int limit, int offset, boolean sortAsc) {
         StringBuilder sql = new StringBuilder("""
             SELECT t.* FROM transactions t
             JOIN accounts a ON t.account_id = a.id
@@ -85,7 +85,7 @@ public class TransactionReadRepository {
             params.addValue("accountId", accountId);
         }
 
-        sql.append(" ORDER BY t.posted_at DESC LIMIT :limit OFFSET :offset");
+        sql.append(" ORDER BY t.posted_at ").append(sortAsc ? "ASC" : "DESC").append(" LIMIT :limit OFFSET :offset");
         params.addValue("limit", limit);
         params.addValue("offset", offset);
 
