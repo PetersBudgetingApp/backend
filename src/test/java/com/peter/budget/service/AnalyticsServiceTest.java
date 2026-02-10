@@ -1,10 +1,14 @@
 package com.peter.budget.service;
 
+import com.peter.budget.exception.ApiException;
+import com.peter.budget.model.dto.BudgetInsightsDto;
 import com.peter.budget.model.dto.CashFlowDto;
 import com.peter.budget.model.dto.SpendingByCategoryDto;
 import com.peter.budget.model.dto.TrendDto;
+import com.peter.budget.model.entity.BudgetTarget;
 import com.peter.budget.model.entity.Category;
 import com.peter.budget.model.enums.CategoryType;
+import com.peter.budget.repository.BudgetTargetRepository;
 import com.peter.budget.repository.TransactionAnalyticsRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,6 +24,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -34,6 +39,8 @@ class AnalyticsServiceTest {
 
     @Mock
     private TransactionAnalyticsRepository transactionAnalyticsRepository;
+    @Mock
+    private BudgetTargetRepository budgetTargetRepository;
     @Mock
     private CategoryViewService categoryViewService;
 
@@ -218,5 +225,80 @@ class AnalyticsServiceTest {
         assertEquals(new BigDecimal("4000.00"), trend.getIncome());
         assertEquals(new BigDecimal("2500.00"), trend.getExpenses());
         assertEquals(new BigDecimal("1500.00"), trend.getNetCashFlow());
+    }
+
+    // --- getBudgetInsights tests ---
+
+    @Test
+    void getBudgetInsightsReturnsRecommendationsAndMonthToDateDelta() {
+        YearMonth targetMonth = YearMonth.now().plusMonths(1);
+        YearMonth baselineOne = targetMonth.minusMonths(1);
+        YearMonth baselineTwo = targetMonth.minusMonths(2);
+
+        Category groceries = Category.builder()
+                .id(10L)
+                .name("Groceries")
+                .color("#22C55E")
+                .categoryType(CategoryType.EXPENSE)
+                .build();
+
+        when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID))
+                .thenReturn(Map.of(10L, groceries));
+        when(budgetTargetRepository.findByUserIdAndMonthKey(USER_ID, targetMonth.toString()))
+                .thenReturn(List.of(
+                        BudgetTarget.builder().categoryId(10L).targetAmount(new BigDecimal("400.00")).build()
+                ));
+        when(transactionAnalyticsRepository.sumByCategory(eq(USER_ID), any(LocalDate.class), any(LocalDate.class)))
+                .thenAnswer(invocation -> {
+                    LocalDate start = invocation.getArgument(1);
+                    LocalDate end = invocation.getArgument(2);
+                    YearMonth month = YearMonth.from(start);
+                    boolean monthToDateCall = end.getDayOfMonth() == 1;
+
+                    if (month.equals(targetMonth)) {
+                        return List.of(new TransactionAnalyticsRepository.CategorySpendingProjection(
+                                10L, monthToDateCall ? new BigDecimal("20.00") : new BigDecimal("500.00"), 4
+                        ));
+                    }
+                    if (month.equals(baselineOne)) {
+                        return List.of(new TransactionAnalyticsRepository.CategorySpendingProjection(
+                                10L, monthToDateCall ? new BigDecimal("10.00") : new BigDecimal("300.00"), 3
+                        ));
+                    }
+                    if (month.equals(baselineTwo)) {
+                        return List.of(new TransactionAnalyticsRepository.CategorySpendingProjection(
+                                10L, monthToDateCall ? new BigDecimal("30.00") : new BigDecimal("100.00"), 2
+                        ));
+                    }
+
+                    return List.of();
+                });
+
+        BudgetInsightsDto result = analyticsService.getBudgetInsights(USER_ID, targetMonth.toString(), 2);
+
+        assertEquals(targetMonth.toString(), result.getMonth());
+        assertEquals(1, result.getCategories().size());
+
+        BudgetInsightsDto.CategoryInsight groceriesInsight = result.getCategories().get(0);
+        assertEquals(new BigDecimal("400.00"), groceriesInsight.getCurrentBudget());
+        assertEquals(new BigDecimal("500.00"), groceriesInsight.getCurrentMonthSpend());
+        assertEquals(new BigDecimal("200.00"), groceriesInsight.getAverageMonthlySpend());
+        assertEquals(new BigDecimal("200.00"), groceriesInsight.getRecommendedBudget());
+        assertEquals(new BigDecimal("-200.00"), groceriesInsight.getBudgetDelta());
+        assertEquals(new BigDecimal("-50.00"), groceriesInsight.getBudgetDeltaPct());
+        assertEquals(new BigDecimal("20.00"), groceriesInsight.getMonthToDateSpend());
+        assertEquals(new BigDecimal("20.00"), groceriesInsight.getAverageMonthToDateSpend());
+        assertEquals(new BigDecimal("0.00"), groceriesInsight.getMonthToDateDelta());
+        assertEquals(new BigDecimal("0.00"), groceriesInsight.getMonthToDateDeltaPct());
+    }
+
+    @Test
+    void getBudgetInsightsRejectsInvalidHistoryMonths() {
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> analyticsService.getBudgetInsights(USER_ID, null, 0)
+        );
+
+        assertEquals("historyMonths must be between 1 and 24", exception.getMessage());
     }
 }

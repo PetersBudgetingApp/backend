@@ -1,6 +1,7 @@
 package com.peter.budget.controller;
 
 import com.peter.budget.config.JwtAuthFilter;
+import com.peter.budget.model.dto.BudgetInsightsDto;
 import com.peter.budget.model.dto.CashFlowDto;
 import com.peter.budget.model.dto.SpendingByCategoryDto;
 import com.peter.budget.model.dto.TrendDto;
@@ -45,5 +46,14 @@ public class AnalyticsController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         CashFlowDto cashFlow = analyticsService.getCashFlow(principal.userId(), startDate, endDate);
         return ResponseEntity.ok(cashFlow);
+    }
+
+    @GetMapping("/budget-insights")
+    public ResponseEntity<BudgetInsightsDto> getBudgetInsights(
+            @AuthenticationPrincipal JwtAuthFilter.UserPrincipal principal,
+            @RequestParam(required = false) String month,
+            @RequestParam(defaultValue = "6") Integer historyMonths) {
+        BudgetInsightsDto budgetInsights = analyticsService.getBudgetInsights(principal.userId(), month, historyMonths);
+        return ResponseEntity.ok(budgetInsights);
     }
 }

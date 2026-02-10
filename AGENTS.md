@@ -220,6 +220,9 @@ A new agent should be able to trace any endpoint to controller, service, reposit
   - `AnalyticsController.getTrends` -> `AnalyticsService.getTrends` -> `TransactionAnalyticsRepository.sumByUserIdAndDateRangeAndType`
 - `GET /api/v1/analytics/cashflow`
   - `AnalyticsController.getCashFlow` -> `AnalyticsService.getCashFlow` -> `TransactionAnalyticsRepository.sumByUserIdAndDateRangeAndType`
+- `GET /api/v1/analytics/budget-insights`
+  - `AnalyticsController.getBudgetInsights` -> `AnalyticsService.getBudgetInsights`
+  - Combines category spending history (`TransactionAnalyticsRepository.sumByCategory`) with current month budget targets (`BudgetTargetRepository.findByUserIdAndMonthKey`) to return per-category recommendation and month-to-date variance vs historical month-to-date averages.
 
 ### Budgets
 - `GET /api/v1/budgets?month=YYYY-MM`
