@@ -190,7 +190,7 @@ public class AnalyticsService {
             BigDecimal monthToDateSpend = currentMonthToDateMap.getOrDefault(categoryId, BigDecimal.ZERO);
             BigDecimal averageMonthlySpend = averageByCategory(baselineMonths, fullMonthSpendByCategory, categoryId);
             BigDecimal averageMonthToDateSpend = averageByCategory(baselineMonths, monthToDateSpendByCategory, categoryId);
-            BigDecimal recommendedBudget = averageMonthlySpend;
+            BigDecimal recommendedBudget = weightedAverageByCategory(baselineMonths, fullMonthSpendByCategory, categoryId);
             BigDecimal budgetDelta = recommendedBudget.subtract(currentBudget).setScale(2, RoundingMode.HALF_UP);
             BigDecimal monthToDateDelta = monthToDateSpend.subtract(averageMonthToDateSpend).setScale(2, RoundingMode.HALF_UP);
 
@@ -327,6 +327,35 @@ public class AnalyticsService {
                         .getOrDefault(categoryId, BigDecimal.ZERO))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         return sum.divide(BigDecimal.valueOf(months.size()), 2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal weightedAverageByCategory(
+            List<YearMonth> months,
+            Map<YearMonth, Map<Long, BigDecimal>> amountsByMonth,
+            Long categoryId) {
+        if (months.isEmpty()) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+
+        BigDecimal weightedSum = BigDecimal.ZERO;
+        BigDecimal totalWeight = BigDecimal.ZERO;
+        BigDecimal weight = BigDecimal.valueOf(0.5d);
+
+        for (YearMonth month : months) {
+            BigDecimal value = amountsByMonth
+                    .getOrDefault(month, Map.of())
+                    .getOrDefault(categoryId, BigDecimal.ZERO);
+
+            weightedSum = weightedSum.add(value.multiply(weight));
+            totalWeight = totalWeight.add(weight);
+            weight = weight.divide(BigDecimal.valueOf(2L), 10, RoundingMode.HALF_UP);
+        }
+
+        if (totalWeight.compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+
+        return weightedSum.divide(totalWeight, 2, RoundingMode.HALF_UP);
     }
 
     private Map<Long, BigDecimal> toCategoryAmountMap(

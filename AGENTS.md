@@ -223,6 +223,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - `GET /api/v1/analytics/budget-insights`
   - `AnalyticsController.getBudgetInsights` -> `AnalyticsService.getBudgetInsights`
   - Combines category spending history (`TransactionAnalyticsRepository.sumByCategory`) with current month budget targets (`BudgetTargetRepository.findByUserIdAndMonthKey`) to return per-category recommendation and month-to-date variance vs historical month-to-date averages.
+  - Recommendation amount uses normalized exponential recency weighting across baseline full-month spend (`0.5`, `0.25`, `0.125`, ...), while `averageMonthlySpend` remains simple arithmetic average for display.
 
 ### Budgets
 - `GET /api/v1/budgets?month=YYYY-MM`

@@ -283,13 +283,72 @@ class AnalyticsServiceTest {
         assertEquals(new BigDecimal("400.00"), groceriesInsight.getCurrentBudget());
         assertEquals(new BigDecimal("500.00"), groceriesInsight.getCurrentMonthSpend());
         assertEquals(new BigDecimal("200.00"), groceriesInsight.getAverageMonthlySpend());
-        assertEquals(new BigDecimal("200.00"), groceriesInsight.getRecommendedBudget());
-        assertEquals(new BigDecimal("-200.00"), groceriesInsight.getBudgetDelta());
-        assertEquals(new BigDecimal("-50.00"), groceriesInsight.getBudgetDeltaPct());
+        assertEquals(new BigDecimal("233.33"), groceriesInsight.getRecommendedBudget());
+        assertEquals(new BigDecimal("-166.67"), groceriesInsight.getBudgetDelta());
+        assertEquals(new BigDecimal("-41.67"), groceriesInsight.getBudgetDeltaPct());
         assertEquals(new BigDecimal("20.00"), groceriesInsight.getMonthToDateSpend());
         assertEquals(new BigDecimal("20.00"), groceriesInsight.getAverageMonthToDateSpend());
         assertEquals(new BigDecimal("0.00"), groceriesInsight.getMonthToDateDelta());
         assertEquals(new BigDecimal("0.00"), groceriesInsight.getMonthToDateDeltaPct());
+    }
+
+    @Test
+    void getBudgetInsightsWeightsRecentMonthsMoreHeavilyForRecommendation() {
+        YearMonth targetMonth = YearMonth.now().plusMonths(1);
+        YearMonth baselineOne = targetMonth.minusMonths(1);
+        YearMonth baselineTwo = targetMonth.minusMonths(2);
+        YearMonth baselineThree = targetMonth.minusMonths(3);
+
+        Category travel = Category.builder()
+                .id(21L)
+                .name("Travel")
+                .color("#2563EB")
+                .categoryType(CategoryType.EXPENSE)
+                .build();
+
+        when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID))
+                .thenReturn(Map.of(21L, travel));
+        when(budgetTargetRepository.findByUserIdAndMonthKey(USER_ID, targetMonth.toString()))
+                .thenReturn(List.of(
+                        BudgetTarget.builder().categoryId(21L).targetAmount(new BigDecimal("0.00")).build()
+                ));
+        when(transactionAnalyticsRepository.sumByCategory(eq(USER_ID), any(LocalDate.class), any(LocalDate.class)))
+                .thenAnswer(invocation -> {
+                    LocalDate start = invocation.getArgument(1);
+                    LocalDate end = invocation.getArgument(2);
+                    YearMonth month = YearMonth.from(start);
+                    boolean monthToDateCall = end.getDayOfMonth() == 1;
+
+                    if (monthToDateCall || month.equals(targetMonth)) {
+                        return List.of(
+                                new TransactionAnalyticsRepository.CategorySpendingProjection(21L, BigDecimal.ZERO, 0)
+                        );
+                    }
+                    if (month.equals(baselineOne)) {
+                        return List.of(
+                                new TransactionAnalyticsRepository.CategorySpendingProjection(21L, new BigDecimal("500.00"), 2)
+                        );
+                    }
+                    if (month.equals(baselineTwo)) {
+                        return List.of(
+                                new TransactionAnalyticsRepository.CategorySpendingProjection(21L, new BigDecimal("100.00"), 2)
+                        );
+                    }
+                    if (month.equals(baselineThree)) {
+                        return List.of(
+                                new TransactionAnalyticsRepository.CategorySpendingProjection(21L, new BigDecimal("50.00"), 1)
+                        );
+                    }
+                    return List.of();
+                });
+
+        BudgetInsightsDto result = analyticsService.getBudgetInsights(USER_ID, targetMonth.toString(), 3);
+
+        assertEquals(1, result.getCategories().size());
+        BudgetInsightsDto.CategoryInsight insight = result.getCategories().get(0);
+
+        assertEquals(new BigDecimal("216.67"), insight.getAverageMonthlySpend());
+        assertEquals(new BigDecimal("321.43"), insight.getRecommendedBudget());
     }
 
     @Test
