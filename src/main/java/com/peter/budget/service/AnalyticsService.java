@@ -321,12 +321,20 @@ public class AnalyticsService {
         if (months.isEmpty()) {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
-        BigDecimal sum = months.stream()
+        List<BigDecimal> monthlyAmounts = months.stream()
                 .map(month -> amountsByMonth
                         .getOrDefault(month, Map.of())
                         .getOrDefault(categoryId, BigDecimal.ZERO))
+                .toList();
+        BigDecimal sum = monthlyAmounts.stream()
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return sum.divide(BigDecimal.valueOf(months.size()), 2, RoundingMode.HALF_UP);
+        long nonZeroMonths = monthlyAmounts.stream()
+                .filter(amount -> amount.compareTo(BigDecimal.ZERO) > 0)
+                .count();
+        if (nonZeroMonths == 0) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        return sum.divide(BigDecimal.valueOf(nonZeroMonths), 2, RoundingMode.HALF_UP);
     }
 
     private BigDecimal weightedAverageByCategory(
