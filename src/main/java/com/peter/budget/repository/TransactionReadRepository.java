@@ -44,6 +44,7 @@ public class TransactionReadRepository {
                                                       String descriptionQuery,
                                                       Long categoryId, boolean uncategorized,
                                                       Long accountId,
+                                                      Double minAmount, Double maxAmount,
                                                       int limit, int offset, boolean sortAsc) {
         StringBuilder sql = new StringBuilder("""
             SELECT t.* FROM transactions t
@@ -83,6 +84,16 @@ public class TransactionReadRepository {
         if (accountId != null) {
             sql.append(" AND t.account_id = :accountId");
             params.addValue("accountId", accountId);
+        }
+
+        if (minAmount != null) {
+            sql.append(" AND t.amount >= :minAmount");
+            params.addValue("minAmount", BigDecimal.valueOf(minAmount));
+        }
+
+        if (maxAmount != null) {
+            sql.append(" AND t.amount <= :maxAmount");
+            params.addValue("maxAmount", BigDecimal.valueOf(maxAmount));
         }
 
         sql.append(" ORDER BY t.posted_at ").append(sortAsc ? "ASC" : "DESC").append(" LIMIT :limit OFFSET :offset");

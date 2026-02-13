@@ -44,6 +44,7 @@ public class TransactionService {
                                                   String descriptionQuery,
                                                   Long categoryId, boolean uncategorized,
                                                   Long accountId,
+                                                  Double minAmount, Double maxAmount,
                                                   int limit, int offset, String sortDirection) {
         if (uncategorized && categoryId != null) {
             throw ApiException.badRequest("Cannot filter by categoryId when uncategorized=true");
@@ -52,7 +53,7 @@ public class TransactionService {
         boolean sortAsc = "asc".equalsIgnoreCase(sortDirection);
 
         List<Transaction> transactions = transactionReadRepository.findByUserIdWithFilters(
-                userId, includeTransfers, startDate, endDate, descriptionQuery, categoryId, uncategorized, accountId, limit, offset, sortAsc);
+                userId, includeTransfers, startDate, endDate, descriptionQuery, categoryId, uncategorized, accountId, minAmount, maxAmount, limit, offset, sortAsc);
 
         Map<Long, Account> accountCache = new HashMap<>();
         Map<Long, Category> categoryMap = categoryViewService.getEffectiveCategoryMapForUser(userId);

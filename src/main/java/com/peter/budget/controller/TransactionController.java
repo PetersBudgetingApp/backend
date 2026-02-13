@@ -38,11 +38,13 @@ public class TransactionController {
             @RequestParam(required = false) Long categoryId,
             @RequestParam(defaultValue = "false") boolean uncategorized,
             @RequestParam(required = false) Long accountId,
+            @RequestParam(required = false) Double minAmount,
+            @RequestParam(required = false) Double maxAmount,
             @RequestParam(defaultValue = "100") int limit,
             @RequestParam(defaultValue = "0") int offset,
             @RequestParam(defaultValue = "desc") String sortDirection) {
         List<TransactionDto> transactions = transactionService.getTransactions(
-                principal.userId(), includeTransfers, startDate, endDate, descriptionQuery, categoryId, uncategorized, accountId, limit, offset, sortDirection);
+                principal.userId(), includeTransfers, startDate, endDate, descriptionQuery, categoryId, uncategorized, accountId, minAmount, maxAmount, limit, offset, sortDirection);
         return ResponseEntity.ok(transactions);
     }
 
