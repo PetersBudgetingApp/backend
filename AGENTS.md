@@ -5,7 +5,7 @@ This is the complete backend operator map for the Spring API.
 A new agent should be able to trace any endpoint to controller, service, repository, SQL behavior, and scheduled workflows without additional discovery.
 
 ## Repo Identity
-- Path: `/Users/petergelgor/Documents/projects/budgeting_app/backend`
+- Path: `backend/` (repository root)
 - Git repo: yes (independent from frontend repo)
 - Stack: Spring Boot 3.5 + JDBC + Security + Flyway + WebFlux client
 
@@ -44,7 +44,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
 - `POST /api/v1/auth/refresh`
-- `/actuator/**`, `/health`, `/error`
+- `/actuator/health/**`, `/health`, `/error`
 
 ### Protected endpoints
 - All other `/api/v1/**` routes require `Authorization: Bearer <access-token>`.

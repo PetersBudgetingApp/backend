@@ -1,2 +1,24 @@
+# Build artifacts
 target/
-src/main/.DS_Store
+
+# OS files
+.DS_Store
+
+# IDE/editor local settings
+.idea/
+.vscode/
+.claude/
+*.iml
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+*.crt
+*.pfx
+secrets/
+*.secret

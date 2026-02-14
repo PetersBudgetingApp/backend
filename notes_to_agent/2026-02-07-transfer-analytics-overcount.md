@@ -19,6 +19,6 @@ Set transfer linkage/flags on in-memory transactions before any `save(tx)` call,
 - Manual API/UI check: dashboard cashflow/trends exclude mirrored internal transfers after restart/sync.
 
 ## References
-- `/Users/petergelgor/Documents/projects/budgeting_app/backend/src/main/java/com/peter/budget/service/TransferDetectionService.java`
-- `/Users/petergelgor/Documents/projects/budgeting_app/backend/src/main/java/com/peter/budget/repository/TransactionAnalyticsRepository.java`
-- `/Users/petergelgor/Documents/projects/budgeting_app/backend/src/main/java/com/peter/budget/service/TransferBackfillStartupService.java`
+- `src/main/java/com/peter/budget/service/TransferDetectionService.java`
+- `src/main/java/com/peter/budget/repository/TransactionAnalyticsRepository.java`
+- `src/main/java/com/peter/budget/service/TransferBackfillStartupService.java`
