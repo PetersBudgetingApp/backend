@@ -154,6 +154,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - `GET /api/v1/transactions`
   - `TransactionController.getTransactions` -> `TransactionService.getTransactions` -> `TransactionReadRepository.findByUserIdWithFilters`
   - Supports optional `descriptionQuery`; matching is normalized to lower-case alphanumeric on both query and transaction description (ignores punctuation/special characters).
+  - Supports optional `merchantQuery`; matching is normalized to lower-case alphanumeric and checked against transaction description, payee, and memo (ignores punctuation/special characters).
 - `POST /api/v1/transactions`
   - request DTO: `TransactionCreateRequest`
   - `TransactionController.createTransaction` -> `TransactionService.createTransaction` -> `TransactionWriteRepository.save`

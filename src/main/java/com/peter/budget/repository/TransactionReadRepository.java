@@ -42,6 +42,7 @@ public class TransactionReadRepository {
     public List<Transaction> findByUserIdWithFilters(Long userId, boolean includeTransfers,
                                                       LocalDate startDate, LocalDate endDate,
                                                       String descriptionQuery,
+                                                      String merchantQuery,
                                                       Long categoryId, boolean uncategorized,
                                                       Long accountId,
                                                       Double minAmount, Double maxAmount,
@@ -68,10 +69,22 @@ public class TransactionReadRepository {
             params.addValue("endDate", Timestamp.from(endDate.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)));
         }
 
-        String normalizedDescriptionQuery = normalizeDescriptionQuery(descriptionQuery);
+        String normalizedDescriptionQuery = normalizeSearchQuery(descriptionQuery);
         if (normalizedDescriptionQuery != null) {
             sql.append(" AND REGEXP_REPLACE(LOWER(COALESCE(t.description, '')), '[^a-z0-9]', '', 'g') LIKE :descriptionQuery");
             params.addValue("descriptionQuery", "%" + normalizedDescriptionQuery + "%");
+        }
+
+        String normalizedMerchantQuery = normalizeSearchQuery(merchantQuery);
+        if (normalizedMerchantQuery != null) {
+            sql.append("""
+                     AND (
+                       REGEXP_REPLACE(LOWER(COALESCE(t.description, '')), '[^a-z0-9]', '', 'g') LIKE :merchantQuery
+                       OR REGEXP_REPLACE(LOWER(COALESCE(t.payee, '')), '[^a-z0-9]', '', 'g') LIKE :merchantQuery
+                       OR REGEXP_REPLACE(LOWER(COALESCE(t.memo, '')), '[^a-z0-9]', '', 'g') LIKE :merchantQuery
+                     )
+                    """);
+            params.addValue("merchantQuery", "%" + normalizedMerchantQuery + "%");
         }
 
         if (uncategorized) {
@@ -235,7 +248,7 @@ public class TransactionReadRepository {
 
     public record TransactionCoverageStats(long totalCount, Instant oldestPostedAt, Instant newestPostedAt) {}
 
-    private String normalizeDescriptionQuery(String query) {
+    private String normalizeSearchQuery(String query) {
         if (query == null) {
             return null;
         }

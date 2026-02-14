@@ -42,6 +42,7 @@ public class TransactionService {
     public List<TransactionDto> getTransactions(Long userId, boolean includeTransfers,
                                                   LocalDate startDate, LocalDate endDate,
                                                   String descriptionQuery,
+                                                  String merchantQuery,
                                                   Long categoryId, boolean uncategorized,
                                                   Long accountId,
                                                   Double minAmount, Double maxAmount,
@@ -53,7 +54,7 @@ public class TransactionService {
         boolean sortAsc = "asc".equalsIgnoreCase(sortDirection);
 
         List<Transaction> transactions = transactionReadRepository.findByUserIdWithFilters(
-                userId, includeTransfers, startDate, endDate, descriptionQuery, categoryId, uncategorized, accountId, minAmount, maxAmount, limit, offset, sortAsc);
+                userId, includeTransfers, startDate, endDate, descriptionQuery, merchantQuery, categoryId, uncategorized, accountId, minAmount, maxAmount, limit, offset, sortAsc);
 
         Map<Long, Account> accountCache = new HashMap<>();
         Map<Long, Category> categoryMap = categoryViewService.getEffectiveCategoryMapForUser(userId);

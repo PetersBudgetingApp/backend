@@ -35,6 +35,7 @@ public class TransactionController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) String descriptionQuery,
+            @RequestParam(required = false) String merchantQuery,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(defaultValue = "false") boolean uncategorized,
             @RequestParam(required = false) Long accountId,
@@ -44,7 +45,7 @@ public class TransactionController {
             @RequestParam(defaultValue = "0") int offset,
             @RequestParam(defaultValue = "desc") String sortDirection) {
         List<TransactionDto> transactions = transactionService.getTransactions(
-                principal.userId(), includeTransfers, startDate, endDate, descriptionQuery, categoryId, uncategorized, accountId, minAmount, maxAmount, limit, offset, sortDirection);
+                principal.userId(), includeTransfers, startDate, endDate, descriptionQuery, merchantQuery, categoryId, uncategorized, accountId, minAmount, maxAmount, limit, offset, sortDirection);
         return ResponseEntity.ok(transactions);
     }
 
