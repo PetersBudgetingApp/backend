@@ -49,7 +49,8 @@ public class SimpleFinConnectionSetupService {
         connection = connectionRepository.save(connection);
 
         for (var sfAccount : initialResponse.accounts()) {
-            syncSupport.createOrUpdateAccount(userId, connection.getId(), sfAccount);
+            Account account = syncSupport.createOrUpdateAccount(userId, connection.getId(), sfAccount);
+            syncSupport.syncTransactions(account, sfAccount.transactions());
         }
 
         connection.setInstitutionName(syncSupport.summarizeInstitutionNames(
