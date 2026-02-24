@@ -188,6 +188,10 @@ public class SimpleFinClient {
 
         String balanceStr = (String) data.get("balance");
         String availableStr = (String) data.get("available-balance");
+        Number balanceDateNum = (Number) data.get("balance-date");
+        Instant balanceDate = balanceDateNum != null
+                ? Instant.ofEpochSecond(balanceDateNum.longValue())
+                : null;
 
         return new SimpleFinAccount(
                 (String) data.get("id"),
@@ -196,6 +200,7 @@ public class SimpleFinClient {
                 (String) data.get("currency"),
                 balanceStr != null ? new java.math.BigDecimal(balanceStr) : java.math.BigDecimal.ZERO,
                 availableStr != null ? new java.math.BigDecimal(availableStr) : null,
+                balanceDate,
                 parseAccountType((String) data.get("type")),
                 transactions
         );
@@ -253,6 +258,7 @@ public class SimpleFinClient {
             String currency,
             java.math.BigDecimal balance,
             java.math.BigDecimal availableBalance,
+            Instant balanceDate,
             String accountType,
             List<SimpleFinTransaction> transactions
     ) {}

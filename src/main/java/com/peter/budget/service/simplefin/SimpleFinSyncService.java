@@ -30,7 +30,12 @@ public class SimpleFinSyncService {
 
     @Transactional
     public SyncResultDto syncConnection(Long userId, Long connectionId) {
-        return syncOrchestrator.syncConnection(userId, connectionId);
+        return syncConnection(userId, connectionId, false);
+    }
+
+    @Transactional
+    public SyncResultDto syncConnection(Long userId, Long connectionId, boolean fullSync) {
+        return syncOrchestrator.syncConnection(userId, connectionId, fullSync);
     }
 
     public List<ConnectionDto> getConnections(Long userId) {

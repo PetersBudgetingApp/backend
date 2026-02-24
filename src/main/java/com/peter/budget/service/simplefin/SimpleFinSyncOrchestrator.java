@@ -37,10 +37,19 @@ public class SimpleFinSyncOrchestrator {
 
     @Transactional
     public SyncResultDto syncConnection(Long userId, Long connectionId) {
+        return syncConnection(userId, connectionId, false);
+    }
+
+    @Transactional
+    public SyncResultDto syncConnection(Long userId, Long connectionId, boolean fullSync) {
         SimpleFinConnection connection = connectionRepository.findByIdAndUserId(connectionId, userId)
                 .orElseThrow(() -> ApiException.notFound("Connection not found"));
 
-        if (connection.isInitialSyncCompleted() && connection.getBackfillCursorDate() != null) {
+        if (fullSync) {
+            LocalDate fullSyncStartDate = LocalDate.now().minusDays(syncPolicy.initialSyncDays());
+            connection.setInitialSyncCompleted(false);
+            connection.setBackfillCursorDate(fullSyncStartDate);
+        } else if (connection.isInitialSyncCompleted() && connection.getBackfillCursorDate() != null) {
             connection.setInitialSyncCompleted(false);
         }
 
@@ -54,14 +63,19 @@ public class SimpleFinSyncOrchestrator {
         try {
             String accessUrl = encryptionService.decrypt(connection.getAccessUrlEncrypted());
 
-            LocalDate incrementalStartDate = syncPolicy.calculateStartDate(connection);
+            LocalDate incrementalStartDate;
+            if (fullSync) {
+                incrementalStartDate = LocalDate.now().minusDays(syncPolicy.initialSyncDays());
+            } else {
+                incrementalStartDate = syncPolicy.calculateStartDate(connection);
 
-            // Extend the window if any account was not refreshed recently
-            // (e.g. its institution was logged out during earlier syncs).
-            Instant oldestAccountUpdate = accountRepository
-                    .findOldestBalanceUpdatedAtByConnectionId(connectionId).orElse(null);
-            incrementalStartDate = syncPolicy.adjustStartDateForStaleAccounts(
-                    incrementalStartDate, oldestAccountUpdate);
+                // Extend the window if any account was not refreshed recently
+                // (e.g. its institution was logged out during earlier syncs).
+                Instant oldestAccountUpdate = accountRepository
+                        .findOldestBalanceUpdatedAtByConnectionId(connectionId).orElse(null);
+                incrementalStartDate = syncPolicy.adjustStartDateForStaleAccounts(
+                        incrementalStartDate, oldestAccountUpdate);
+            }
 
             LocalDate incrementalEndDate = LocalDate.now();
 
@@ -143,11 +157,20 @@ public class SimpleFinSyncOrchestrator {
             connection.setErrorMessage(null);
             connectionRepository.save(connection);
 
+            String successMessage;
+            if (fullSync) {
+                successMessage = connection.isInitialSyncCompleted()
+                        ? "Full sync completed successfully."
+                        : "Full sync started. Historical backfill is still in progress.";
+            } else {
+                successMessage = connection.isInitialSyncCompleted()
+                        ? "Sync completed successfully"
+                        : "Sync completed. Historical backfill is still in progress.";
+            }
+
             return SyncResultDto.builder()
                     .success(true)
-                    .message(connection.isInitialSyncCompleted()
-                            ? "Sync completed successfully"
-                            : "Sync completed. Historical backfill is still in progress.")
+                    .message(successMessage)
                     .accountsSynced(accountsSynced)
                     .transactionsAdded(transactionsAdded)
                     .transactionsUpdated(transactionsUpdated)

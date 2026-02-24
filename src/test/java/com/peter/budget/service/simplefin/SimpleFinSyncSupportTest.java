@@ -109,7 +109,7 @@ class SimpleFinSyncSupportTest {
         SimpleFinClient.SimpleFinAccount sfAccount = new SimpleFinClient.SimpleFinAccount(
                 "ext-123", "My Checking", "Chase", "USD",
                 new BigDecimal("1234.56"), new BigDecimal("1000.00"),
-                "CHECKING", List.of()
+                null, "CHECKING", List.of()
         );
 
         when(accountRepository.findByConnectionIdAndExternalId(CONNECTION_ID, "ext-123"))
@@ -149,7 +149,7 @@ class SimpleFinSyncSupportTest {
 
         SimpleFinClient.SimpleFinAccount sfAccount = new SimpleFinClient.SimpleFinAccount(
                 "ext-123", "New Name", "Chase", "USD",
-                new BigDecimal("750.00"), null, "CHECKING", List.of()
+                new BigDecimal("750.00"), null, null, "CHECKING", List.of()
         );
 
         when(accountRepository.findByConnectionIdAndExternalId(CONNECTION_ID, "ext-123"))
@@ -166,7 +166,7 @@ class SimpleFinSyncSupportTest {
     void createOrUpdateAccountDefaultsCurrencyToUSD() {
         SimpleFinClient.SimpleFinAccount sfAccount = new SimpleFinClient.SimpleFinAccount(
                 "ext-123", "Account", "Bank", null,
-                BigDecimal.ZERO, null, "CHECKING", List.of()
+                BigDecimal.ZERO, null, null, "CHECKING", List.of()
         );
 
         when(accountRepository.findByConnectionIdAndExternalId(CONNECTION_ID, "ext-123"))
@@ -177,6 +177,54 @@ class SimpleFinSyncSupportTest {
 
         verify(accountRepository).save(accountCaptor.capture());
         assertEquals("USD", accountCaptor.getValue().getCurrency());
+    }
+
+    @Test
+    void createOrUpdateAccountUsesProviderBalanceDateWhenPresent() {
+        Instant providerBalanceDate = Instant.parse("2026-01-20T12:00:00Z");
+        SimpleFinClient.SimpleFinAccount sfAccount = new SimpleFinClient.SimpleFinAccount(
+                "ext-123", "My Checking", "Chase", "USD",
+                new BigDecimal("1234.56"), new BigDecimal("1000.00"),
+                providerBalanceDate, "CHECKING", List.of()
+        );
+
+        when(accountRepository.findByConnectionIdAndExternalId(CONNECTION_ID, "ext-123"))
+                .thenReturn(Optional.empty());
+        when(accountRepository.save(any(Account.class))).thenAnswer(i -> i.getArgument(0));
+
+        syncSupport.createOrUpdateAccount(USER_ID, CONNECTION_ID, sfAccount);
+
+        verify(accountRepository).save(accountCaptor.capture());
+        assertEquals(providerBalanceDate, accountCaptor.getValue().getBalanceUpdatedAt());
+    }
+
+    @Test
+    void createOrUpdateAccountKeepsExistingBalanceDateWhenProviderOmitsIt() {
+        Instant existingBalanceDate = Instant.parse("2025-12-15T00:00:00Z");
+        Account existing = Account.builder()
+                .id(ACCOUNT_ID)
+                .userId(USER_ID)
+                .connectionId(CONNECTION_ID)
+                .externalId("ext-123")
+                .name("Old Name")
+                .accountType(AccountType.CHECKING)
+                .balanceUpdatedAt(existingBalanceDate)
+                .active(true)
+                .build();
+
+        SimpleFinClient.SimpleFinAccount sfAccount = new SimpleFinClient.SimpleFinAccount(
+                "ext-123", "Updated Name", "Chase", "USD",
+                new BigDecimal("750.00"), null, null, "CHECKING", List.of()
+        );
+
+        when(accountRepository.findByConnectionIdAndExternalId(CONNECTION_ID, "ext-123"))
+                .thenReturn(Optional.of(existing));
+        when(accountRepository.save(any(Account.class))).thenAnswer(i -> i.getArgument(0));
+
+        syncSupport.createOrUpdateAccount(USER_ID, CONNECTION_ID, sfAccount);
+
+        verify(accountRepository).save(accountCaptor.capture());
+        assertEquals(existingBalanceDate, accountCaptor.getValue().getBalanceUpdatedAt());
     }
 
     // --- syncTransactions tests ---

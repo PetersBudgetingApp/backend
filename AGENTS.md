@@ -136,6 +136,9 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - `POST /api/v1/connections/{id}/sync`
   - `ConnectionController.syncConnection` -> `SimpleFinSyncService.syncConnection`
   - delegates to `SimpleFinSyncOrchestrator`
+- `POST /api/v1/connections/{id}/sync/full`
+  - `ConnectionController.fullSyncConnection` -> `SimpleFinSyncService.syncConnection(..., true)`
+  - forces initial/backfill mode and starts reconciliation from recent history backward
 - `DELETE /api/v1/connections/{id}`
   - `ConnectionController.deleteConnection` -> `SimpleFinSyncService.deleteConnection`
 
@@ -293,7 +296,9 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 ### SimpleFIN sync/backfill lifecycle
 1. Resolve connection and check request quota policy.
 2. Run incremental sync window (`calculateStartDate` with overlap).
+   - Full sync mode uses a forced recent-start window and resets backfill cursor so windows walk backward through full history.
 3. Upsert accounts and transactions.
+   - Account `balance_updated_at` should be sourced from SimpleFIN `balance-date` when available; do not overwrite with `now` if provider omits it.
    - Auto-categorized transactions persist `categorized_by_rule_id` for rule-level traceability.
    - Rules targeting hidden categories are skipped.
 4. If initial history not complete, run backfill windows backward in time.
@@ -438,3 +443,4 @@ Use `notes_to_agent/_note_template.md` for note structure.
 ## Learned Fixes
 - Transfer-linking flows must preserve `transfer_pair_id`, `is_internal_transfer`, and `exclude_from_totals` when applying category updates; otherwise analytics will overcount transfers as income/expense.
 - Rule-backfill unmatch handling must clear both `categorized_by_rule_id` and `category_id`; clearing only rule tracking leaves stale categories that look like rule updates require restart.
+- SimpleFIN stale-account catch-up must rely on provider `balance-date`; setting account staleness from local sync time hides auth-gap windows and misses delayed transaction recovery.

@@ -60,13 +60,26 @@ class SimpleFinSyncServiceTest {
     void syncConnectionDelegatesToOrchestrator() {
         SyncResultDto expected = SyncResultDto.builder()
                 .success(true).accountsSynced(2).transactionsAdded(10).build();
-        when(syncOrchestrator.syncConnection(USER_ID, CONNECTION_ID)).thenReturn(expected);
+        when(syncOrchestrator.syncConnection(USER_ID, CONNECTION_ID, false)).thenReturn(expected);
 
         SyncResultDto result = syncService.syncConnection(USER_ID, CONNECTION_ID);
 
         assertEquals(true, result.isSuccess());
         assertEquals(2, result.getAccountsSynced());
-        verify(syncOrchestrator).syncConnection(USER_ID, CONNECTION_ID);
+        verify(syncOrchestrator).syncConnection(USER_ID, CONNECTION_ID, false);
+    }
+
+    @Test
+    void fullSyncConnectionDelegatesToOrchestrator() {
+        SyncResultDto expected = SyncResultDto.builder()
+                .success(true).message("Full sync started. Historical backfill is still in progress.").build();
+        when(syncOrchestrator.syncConnection(USER_ID, CONNECTION_ID, true)).thenReturn(expected);
+
+        SyncResultDto result = syncService.syncConnection(USER_ID, CONNECTION_ID, true);
+
+        assertEquals(true, result.isSuccess());
+        assertEquals("Full sync started. Historical backfill is still in progress.", result.getMessage());
+        verify(syncOrchestrator).syncConnection(USER_ID, CONNECTION_ID, true);
     }
 
     @Test

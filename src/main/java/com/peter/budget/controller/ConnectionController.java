@@ -44,6 +44,14 @@ public class ConnectionController {
         return ResponseEntity.ok(result);
     }
 
+    @PostMapping("/{id}/sync/full")
+    public ResponseEntity<SyncResultDto> fullSyncConnection(
+            @AuthenticationPrincipal JwtAuthFilter.UserPrincipal principal,
+            @PathVariable Long id) {
+        SyncResultDto result = syncService.syncConnection(principal.userId(), id, true);
+        return ResponseEntity.ok(result);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteConnection(
             @AuthenticationPrincipal JwtAuthFilter.UserPrincipal principal,

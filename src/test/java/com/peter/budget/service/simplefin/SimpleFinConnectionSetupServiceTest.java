@@ -63,7 +63,7 @@ class SimpleFinConnectionSetupServiceTest {
     void setupConnectionExchangesTokenAndCreatesConnection() {
         SimpleFinClient.SimpleFinAccount sfAccount = new SimpleFinClient.SimpleFinAccount(
                 "ext-1", "Checking", "My Bank", "USD",
-                new BigDecimal("1000.00"), new BigDecimal("900.00"), "CHECKING", List.of()
+                new BigDecimal("1000.00"), new BigDecimal("900.00"), null, "CHECKING", List.of()
         );
         SimpleFinClient.SimpleFinAccountsResponse response =
                 new SimpleFinClient.SimpleFinAccountsResponse(List.of(sfAccount), List.of());
@@ -131,11 +131,11 @@ class SimpleFinConnectionSetupServiceTest {
     void setupConnectionCreatesAccountsForEachSimpleFinAccount() {
         SimpleFinClient.SimpleFinAccount acct1 = new SimpleFinClient.SimpleFinAccount(
                 "ext-1", "Checking", "Bank A", "USD",
-                new BigDecimal("500.00"), null, "CHECKING", List.of()
+                new BigDecimal("500.00"), null, null, "CHECKING", List.of()
         );
         SimpleFinClient.SimpleFinAccount acct2 = new SimpleFinClient.SimpleFinAccount(
                 "ext-2", "Savings", "Bank A", "USD",
-                new BigDecimal("2000.00"), null, "SAVINGS", List.of()
+                new BigDecimal("2000.00"), null, null, "SAVINGS", List.of()
         );
         SimpleFinClient.SimpleFinAccountsResponse response =
                 new SimpleFinClient.SimpleFinAccountsResponse(List.of(acct1, acct2), List.of());

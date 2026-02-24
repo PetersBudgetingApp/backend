@@ -7,6 +7,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -179,6 +180,7 @@ class SimpleFinClientTest {
                 "name", "My Checking",
                 "currency", "USD",
                 "balance", "1500.50",
+                "balance-date", 1700000000,
                 "org", Map.of("name", "Test Bank"),
                 "transactions", List.of()
         );
@@ -196,6 +198,7 @@ class SimpleFinClientTest {
         assertEquals("Test Bank", account.institutionName());
         assertEquals("USD", account.currency());
         assertEquals(new BigDecimal("1500.50"), account.balance());
+        assertEquals(Instant.ofEpochSecond(1700000000), account.balanceDate());
     }
 
     @Test

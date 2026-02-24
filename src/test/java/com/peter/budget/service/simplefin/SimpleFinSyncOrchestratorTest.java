@@ -33,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -130,7 +131,7 @@ class SimpleFinSyncOrchestratorTest {
 
         SimpleFinClient.SimpleFinAccount sfAccount = new SimpleFinClient.SimpleFinAccount(
                 "ext-1", "Checking", "Chase", "USD",
-                new BigDecimal("1000.00"), null, "CHECKING", List.of()
+                new BigDecimal("1000.00"), null, null, "CHECKING", List.of()
         );
         SimpleFinClient.SimpleFinAccountsResponse response =
                 new SimpleFinClient.SimpleFinAccountsResponse(List.of(sfAccount), List.of());
@@ -148,6 +149,33 @@ class SimpleFinSyncOrchestratorTest {
         assertEquals(5, result.getTransactionsAdded());
         assertEquals(2, result.getTransactionsUpdated());
         assertNotNull(result.getSyncedAt());
+    }
+
+    @Test
+    void fullSyncForcesBackfillModeAndUsesRecentWindowAsStartingPoint() {
+        SimpleFinConnection connection = baseConnection();
+        connection.setInitialSyncCompleted(true);
+        connection.setBackfillCursorDate(null);
+
+        when(connectionRepository.findByIdAndUserId(CONNECTION_ID, USER_ID))
+                .thenReturn(Optional.of(connection));
+        when(connectionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(simpleFinClient.fetchAccounts(any(), any(), any()))
+                .thenReturn(new SimpleFinClient.SimpleFinAccountsResponse(List.of(), List.of()));
+        when(syncPolicy.emptyBackfillWindowsToComplete()).thenReturn(1);
+        when(syncPolicy.canMakeRequest(any())).thenReturn(true);
+
+        SyncResultDto result = orchestrator.syncConnection(USER_ID, CONNECTION_ID, true);
+
+        assertTrue(result.isSuccess());
+        assertEquals("Full sync completed successfully.", result.getMessage());
+        verify(accountRepository, never()).findOldestBalanceUpdatedAtByConnectionId(CONNECTION_ID);
+
+        ArgumentCaptor<LocalDate> startDateCaptor = ArgumentCaptor.forClass(LocalDate.class);
+        ArgumentCaptor<LocalDate> endDateCaptor = ArgumentCaptor.forClass(LocalDate.class);
+        verify(simpleFinClient, atLeastOnce()).fetchAccounts(any(), startDateCaptor.capture(), endDateCaptor.capture());
+        assertEquals(LocalDate.now().minusDays(60), startDateCaptor.getAllValues().get(0));
+        assertEquals(LocalDate.now(), endDateCaptor.getAllValues().get(0));
     }
 
     @Test

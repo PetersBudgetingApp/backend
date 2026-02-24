@@ -64,7 +64,11 @@ public class SimpleFinSyncSupport {
         account.setCurrency(sfAccount.currency() != null ? sfAccount.currency() : "USD");
         account.setCurrentBalance(sfAccount.balance());
         account.setAvailableBalance(sfAccount.availableBalance());
-        account.setBalanceUpdatedAt(Instant.now());
+        if (sfAccount.balanceDate() != null) {
+            account.setBalanceUpdatedAt(sfAccount.balanceDate());
+        } else if (account.getBalanceUpdatedAt() == null) {
+            account.setBalanceUpdatedAt(Instant.now());
+        }
 
         return accountRepository.save(account);
     }
