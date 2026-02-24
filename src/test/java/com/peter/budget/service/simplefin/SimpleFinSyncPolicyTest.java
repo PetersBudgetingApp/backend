@@ -108,6 +108,50 @@ class SimpleFinSyncPolicyTest {
     }
 
     @Test
+    void adjustStartDateReturnsNormalDateWhenNoStaleAccounts() {
+        LocalDate normalDate = LocalDate.of(2026, 2, 20);
+
+        LocalDate result = syncPolicy.adjustStartDateForStaleAccounts(normalDate, null);
+
+        assertEquals(normalDate, result);
+    }
+
+    @Test
+    void adjustStartDateExtendsWindowForStaleAccount() {
+        // Normal window starts Feb 20, but an account was last updated on Feb 10
+        LocalDate normalDate = LocalDate.of(2026, 2, 20);
+        Instant staleUpdate = LocalDate.of(2026, 2, 10).atStartOfDay().toInstant(ZoneOffset.UTC);
+
+        LocalDate result = syncPolicy.adjustStartDateForStaleAccounts(normalDate, staleUpdate);
+
+        // Should extend to stale date minus 3 days overlap = Feb 7
+        assertEquals(LocalDate.of(2026, 2, 7), result);
+    }
+
+    @Test
+    void adjustStartDateDoesNotExtendWhenAccountIsRecent() {
+        // Normal window starts Feb 15, account was updated on Feb 20 (more recent)
+        LocalDate normalDate = LocalDate.of(2026, 2, 15);
+        Instant recentUpdate = LocalDate.of(2026, 2, 20).atStartOfDay().toInstant(ZoneOffset.UTC);
+
+        LocalDate result = syncPolicy.adjustStartDateForStaleAccounts(normalDate, recentUpdate);
+
+        assertEquals(normalDate, result);
+    }
+
+    @Test
+    void adjustStartDateCapsAtMaxCatchupDays() {
+        // Normal window starts recently, but account is extremely stale (6 months ago)
+        LocalDate normalDate = LocalDate.now().minusDays(3);
+        Instant veryStaleUpdate = LocalDate.now().minusDays(180).atStartOfDay().toInstant(ZoneOffset.UTC);
+
+        LocalDate result = syncPolicy.adjustStartDateForStaleAccounts(normalDate, veryStaleUpdate);
+
+        // Should cap at 90 days ago, not 183 days ago
+        assertEquals(LocalDate.now().minusDays(90), result);
+    }
+
+    @Test
     void consumeRequestQuotaIncrementsCountAndSetsResetTime() {
         SimpleFinConnection connection = SimpleFinConnection.builder()
                 .id(1L)

@@ -17,6 +17,7 @@ public class SimpleFinSyncPolicy {
     private static final int MAX_DAILY_REQUESTS = 24;
     private static final int INITIAL_SYNC_DAYS = 60;
     private static final int OVERLAP_DAYS = 3;
+    private static final int MAX_CATCHUP_DAYS = 90;
     private static final int EMPTY_BACKFILL_WINDOWS_TO_COMPLETE = 12;
     private static final LocalDate HISTORY_CUTOFF_DATE = LocalDate.of(1970, 1, 1);
 
@@ -50,6 +51,28 @@ public class SimpleFinSyncPolicy {
                 .atZone(ZoneOffset.UTC)
                 .toLocalDate()
                 .minusDays(OVERLAP_DAYS);
+    }
+
+    /**
+     * Extends the sync start date backwards if any account in the connection
+     * has a stale {@code balanceUpdatedAt} (e.g. its institution was logged out
+     * for several syncs and recently re-authenticated).  The returned date is
+     * never earlier than {@code MAX_CATCHUP_DAYS} ago.
+     */
+    public LocalDate adjustStartDateForStaleAccounts(LocalDate normalStartDate, Instant oldestAccountBalanceUpdate) {
+        if (oldestAccountBalanceUpdate == null) {
+            return normalStartDate;
+        }
+        LocalDate staleDate = oldestAccountBalanceUpdate
+                .atZone(ZoneOffset.UTC)
+                .toLocalDate()
+                .minusDays(OVERLAP_DAYS);
+        LocalDate maxCatchupDate = LocalDate.now().minusDays(MAX_CATCHUP_DAYS);
+
+        if (staleDate.isBefore(normalStartDate)) {
+            return staleDate.isBefore(maxCatchupDate) ? maxCatchupDate : staleDate;
+        }
+        return normalStartDate;
     }
 
     public void consumeRequestQuota(SimpleFinConnection connection, Long connectionId) {

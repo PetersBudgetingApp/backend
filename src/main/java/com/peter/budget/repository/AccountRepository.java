@@ -93,6 +93,13 @@ public class AccountRepository {
         return jdbcTemplate.query(sql, params, Objects.requireNonNull(ROW_MAPPER));
     }
 
+    public Optional<Instant> findOldestBalanceUpdatedAtByConnectionId(Long connectionId) {
+        String sql = "SELECT MIN(balance_updated_at) FROM accounts WHERE connection_id = :connectionId AND is_active = true";
+        var params = new MapSqlParameterSource("connectionId", connectionId);
+        Timestamp result = jdbcTemplate.queryForObject(sql, params, Timestamp.class);
+        return Optional.ofNullable(result).map(Timestamp::toInstant);
+    }
+
     public int countByConnectionId(Long connectionId) {
         String sql = "SELECT COUNT(*) FROM accounts WHERE connection_id = :connectionId";
         var params = new MapSqlParameterSource("connectionId", connectionId);

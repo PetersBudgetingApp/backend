@@ -55,6 +55,14 @@ public class SimpleFinSyncOrchestrator {
             String accessUrl = encryptionService.decrypt(connection.getAccessUrlEncrypted());
 
             LocalDate incrementalStartDate = syncPolicy.calculateStartDate(connection);
+
+            // Extend the window if any account was not refreshed recently
+            // (e.g. its institution was logged out during earlier syncs).
+            Instant oldestAccountUpdate = accountRepository
+                    .findOldestBalanceUpdatedAtByConnectionId(connectionId).orElse(null);
+            incrementalStartDate = syncPolicy.adjustStartDateForStaleAccounts(
+                    incrementalStartDate, oldestAccountUpdate);
+
             LocalDate incrementalEndDate = LocalDate.now();
 
             int accountsSynced = 0;

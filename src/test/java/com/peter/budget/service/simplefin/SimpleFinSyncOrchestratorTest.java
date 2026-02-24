@@ -89,6 +89,8 @@ class SimpleFinSyncOrchestratorTest {
         lenient().when(syncPolicy.historyCutoffDate()).thenReturn(LocalDate.of(1970, 1, 1));
         lenient().when(transferDetectionService.detectTransfers(USER_ID)).thenReturn(0);
         lenient().when(accountRepository.findByConnectionId(CONNECTION_ID)).thenReturn(List.of());
+        lenient().when(accountRepository.findOldestBalanceUpdatedAtByConnectionId(CONNECTION_ID)).thenReturn(Optional.empty());
+        lenient().when(syncPolicy.adjustStartDateForStaleAccounts(any(), any())).thenAnswer(i -> i.getArgument(0));
         lenient().when(syncSupport.summarizeInstitutionNames(any(), any())).thenReturn("Test Bank");
     }
 
