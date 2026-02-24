@@ -293,6 +293,44 @@ class AnalyticsServiceTest {
     }
 
     @Test
+    void getBudgetInsightsIncludesUncategorizedCategoryType() {
+        YearMonth targetMonth = YearMonth.now().plusMonths(1);
+        YearMonth baseline = targetMonth.minusMonths(1);
+
+        Category uncategorized = Category.builder()
+                .id(99L)
+                .name("Uncategorized")
+                .color("#9CA3AF")
+                .categoryType(CategoryType.UNCATEGORIZED)
+                .build();
+
+        when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID))
+                .thenReturn(Map.of(99L, uncategorized));
+        when(budgetTargetRepository.findByUserIdAndMonthKey(USER_ID, targetMonth.toString()))
+                .thenReturn(List.of(
+                        BudgetTarget.builder().categoryId(99L).targetAmount(new BigDecimal("50.00")).build()
+                ));
+        when(transactionAnalyticsRepository.sumByCategory(eq(USER_ID), any(LocalDate.class), any(LocalDate.class)))
+                .thenAnswer(invocation -> {
+                    LocalDate start = invocation.getArgument(1);
+                    YearMonth month = YearMonth.from(start);
+                    if (month.equals(targetMonth)) {
+                        return List.of(new TransactionAnalyticsRepository.CategorySpendingProjection(99L, new BigDecimal("120.00"), 3));
+                    }
+                    if (month.equals(baseline)) {
+                        return List.of(new TransactionAnalyticsRepository.CategorySpendingProjection(99L, new BigDecimal("80.00"), 2));
+                    }
+                    return List.of();
+                });
+
+        BudgetInsightsDto result = analyticsService.getBudgetInsights(USER_ID, targetMonth.toString(), 1);
+
+        assertEquals(1, result.getCategories().size());
+        assertEquals(99L, result.getCategories().get(0).getCategoryId());
+        assertEquals("Uncategorized", result.getCategories().get(0).getCategoryName());
+    }
+
+    @Test
     void getBudgetInsightsWeightsRecentMonthsMoreHeavilyForRecommendation() {
         YearMonth targetMonth = YearMonth.now().plusMonths(1);
         YearMonth baselineOne = targetMonth.minusMonths(1);

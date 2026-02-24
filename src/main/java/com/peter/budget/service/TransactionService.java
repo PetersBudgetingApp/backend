@@ -37,6 +37,7 @@ public class TransactionService {
     private final CategorizationRuleRepository categorizationRuleRepository;
     private final AutoCategorizationService autoCategorizationService;
     private final CategoryViewService categoryViewService;
+    private final UncategorizedCategoryService uncategorizedCategoryService;
     private final TransferDetectionService transferDetectionService;
 
     public List<TransactionDto> getTransactions(Long userId, boolean includeTransfers,
@@ -51,10 +52,31 @@ public class TransactionService {
             throw ApiException.badRequest("Cannot filter by categoryId when uncategorized=true");
         }
 
+        Long effectiveCategoryId = categoryId;
+        boolean effectiveUncategorizedFilter = uncategorized;
+        if (uncategorized) {
+            effectiveCategoryId = uncategorizedCategoryService.requireSystemUncategorizedCategoryId();
+            effectiveUncategorizedFilter = false;
+        }
+
         boolean sortAsc = "asc".equalsIgnoreCase(sortDirection);
 
         List<Transaction> transactions = transactionReadRepository.findByUserIdWithFilters(
-                userId, includeTransfers, startDate, endDate, descriptionQuery, merchantQuery, categoryId, uncategorized, accountId, minAmount, maxAmount, limit, offset, sortAsc);
+                userId,
+                includeTransfers,
+                startDate,
+                endDate,
+                descriptionQuery,
+                merchantQuery,
+                effectiveCategoryId,
+                effectiveUncategorizedFilter,
+                accountId,
+                minAmount,
+                maxAmount,
+                limit,
+                offset,
+                sortAsc
+        );
 
         Map<Long, Account> accountCache = new HashMap<>();
         Map<Long, Category> categoryMap = categoryViewService.getEffectiveCategoryMapForUser(userId);
@@ -78,6 +100,7 @@ public class TransactionService {
     public TransactionDto createTransaction(Long userId, TransactionCreateRequest request) {
         Account account = accountRepository.findByIdAndUserId(request.getAccountId(), userId)
                 .orElseThrow(() -> ApiException.notFound("Account not found"));
+        Long uncategorizedCategoryId = uncategorizedCategoryService.requireSystemUncategorizedCategoryId();
 
         if (request.getAmount().compareTo(BigDecimal.ZERO) == 0) {
             throw ApiException.badRequest("Amount must be non-zero");
@@ -120,6 +143,10 @@ public class TransactionService {
                 tx.setCategoryId(match.categoryId());
                 tx.setCategorizedByRuleId(match.ruleId());
                 tx.setManuallyCategorized(false);
+            } else {
+                tx.setCategoryId(uncategorizedCategoryId);
+                tx.setCategorizedByRuleId(null);
+                tx.setManuallyCategorized(false);
             }
         }
 
@@ -157,6 +184,7 @@ public class TransactionService {
     @Transactional
     public CategorizationRuleBackfillResultDto backfillCategorizationRules(Long userId) {
         List<Transaction> transactions = transactionReadRepository.findByUserId(userId);
+        Long uncategorizedCategoryId = uncategorizedCategoryService.requireSystemUncategorizedCategoryId();
 
         int eligible = 0;
         int matched = 0;
@@ -172,9 +200,9 @@ public class TransactionService {
                     userId, tx.getAccountId(), tx.getAmount(), tx.getDescription(), tx.getPayee(), tx.getMemo());
 
             if (match == null) {
-                if (tx.getCategorizedByRuleId() != null) {
+                if (!Objects.equals(tx.getCategoryId(), uncategorizedCategoryId) || tx.getCategorizedByRuleId() != null) {
                     tx.setCategorizedByRuleId(null);
-                    tx.setCategoryId(null);
+                    tx.setCategoryId(uncategorizedCategoryId);
                     tx.setManuallyCategorized(false);
                     transactionWriteRepository.save(tx);
                     updated++;
@@ -215,7 +243,7 @@ public class TransactionService {
 
         if (request.isCategoryIdProvided()) {
             if (request.getCategoryId() == null) {
-                tx.setCategoryId(null);
+                tx.setCategoryId(uncategorizedCategoryService.requireSystemUncategorizedCategoryId());
                 tx.setCategorizedByRuleId(null);
                 tx.setManuallyCategorized(false);
             } else {

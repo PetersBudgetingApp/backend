@@ -104,6 +104,21 @@ public class CategoryRepository {
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
 
+    public Optional<Category> findSystemUncategorizedCategory() {
+        String sql = """
+            SELECT * FROM categories
+            WHERE user_id IS NULL
+              AND (category_type = 'UNCATEGORIZED' OR UPPER(name) = 'UNCATEGORIZED')
+            ORDER BY
+              CASE WHEN category_type = 'UNCATEGORIZED' THEN 0 ELSE 1 END,
+              sort_order,
+              name
+            LIMIT 1
+            """;
+        var results = jdbcTemplate.query(sql, Objects.requireNonNull(ROW_MAPPER));
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
     public Category save(Category category) {
         if (category.getId() == null) {
             return insert(category);

@@ -11,6 +11,7 @@ import com.peter.budget.repository.CategoryOverrideRepository;
 import com.peter.budget.repository.CategoryRepository;
 import com.peter.budget.repository.RecurringPatternRepository;
 import com.peter.budget.repository.TransactionWriteRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -33,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -43,6 +45,7 @@ class CategoryServiceTest {
     private static final long USER_ID = 7L;
     private static final long ROOT_ID = 100L;
     private static final long CHILD_ID = 101L;
+    private static final long UNCATEGORIZED_CATEGORY_ID = 999L;
 
     @Mock
     private CategoryRepository categoryRepository;
@@ -56,6 +59,8 @@ class CategoryServiceTest {
     private CategorizationRuleRepository categorizationRuleRepository;
     @Mock
     private CategoryViewService categoryViewService;
+    @Mock
+    private UncategorizedCategoryService uncategorizedCategoryService;
 
     @InjectMocks
     private CategoryService categoryService;
@@ -65,6 +70,12 @@ class CategoryServiceTest {
 
     @Captor
     private ArgumentCaptor<List<Long>> idsCaptor;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(uncategorizedCategoryService.requireSystemUncategorizedCategoryId())
+                .thenReturn(UNCATEGORIZED_CATEGORY_ID);
+    }
 
     // --- getCategoriesForUser tests ---
 
@@ -176,6 +187,20 @@ class CategoryServiceTest {
     }
 
     @Test
+    void createCategoryRejectsReservedUncategorizedType() {
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> categoryService.createCategory(USER_ID, CategoryCreateRequest.builder()
+                        .name("Reserved")
+                        .categoryType(CategoryType.UNCATEGORIZED)
+                        .build())
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verify(categoryRepository, never()).save(any(Category.class));
+    }
+
+    @Test
     void createCategoryWithParentValidatesParentExists() {
         when(categoryViewService.getEffectiveCategoryByIdForUser(USER_ID, ROOT_ID))
                 .thenReturn(Optional.empty());
@@ -189,6 +214,24 @@ class CategoryServiceTest {
         );
 
         assertEquals(HttpStatus.NOT_FOUND, exception.getStatus());
+        verify(categoryRepository, never()).save(any(Category.class));
+    }
+
+    @Test
+    void createCategoryRejectsUncategorizedAsParent() {
+        Category uncategorized = category(UNCATEGORIZED_CATEGORY_ID, null, true, "Uncategorized");
+        when(categoryViewService.getEffectiveCategoryByIdForUser(USER_ID, UNCATEGORIZED_CATEGORY_ID))
+                .thenReturn(Optional.of(uncategorized));
+
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> categoryService.createCategory(USER_ID, CategoryCreateRequest.builder()
+                        .name("Child")
+                        .parentId(UNCATEGORIZED_CATEGORY_ID)
+                        .build())
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
         verify(categoryRepository, never()).save(any(Category.class));
     }
 
@@ -245,6 +288,43 @@ class CategoryServiceTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
         assertEquals("Category cannot be its own parent", exception.getMessage());
+    }
+
+    @Test
+    void updateCategoryRejectsReservedUncategorizedType() {
+        Category existing = category(ROOT_ID, null, false, "Food");
+        existing.setUserId(USER_ID);
+
+        when(categoryRepository.findByIdForUser(ROOT_ID, USER_ID)).thenReturn(Optional.of(existing));
+
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> categoryService.updateCategory(USER_ID, ROOT_ID, CategoryCreateRequest.builder()
+                        .name("Food")
+                        .categoryType(CategoryType.UNCATEGORIZED)
+                        .build())
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verify(categoryRepository, never()).save(any(Category.class));
+    }
+
+    @Test
+    void updateCategoryRejectsModifyingUncategorizedCategory() {
+        Category uncategorized = category(UNCATEGORIZED_CATEGORY_ID, null, true, "Uncategorized");
+        uncategorized.setUserId(USER_ID);
+
+        when(categoryRepository.findByIdForUser(UNCATEGORIZED_CATEGORY_ID, USER_ID)).thenReturn(Optional.of(uncategorized));
+
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> categoryService.updateCategory(USER_ID, UNCATEGORIZED_CATEGORY_ID, CategoryCreateRequest.builder()
+                        .name("Uncategorized")
+                        .build())
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verify(categoryRepository, never()).save(any(Category.class));
     }
 
     @Test
@@ -360,7 +440,7 @@ class CategoryServiceTest {
 
         categoryService.deleteCategory(USER_ID, ROOT_ID);
 
-        verify(transactionWriteRepository).clearCategoryForUserAndCategoryIds(eq(USER_ID), idsCaptor.capture());
+        verify(transactionWriteRepository).clearCategoryForUserAndCategoryIds(eq(USER_ID), idsCaptor.capture(), eq(UNCATEGORIZED_CATEGORY_ID));
         List<Long> removedCategoryIds = idsCaptor.getValue();
         assertEquals(Set.of(ROOT_ID, CHILD_ID), new HashSet<>(removedCategoryIds));
 
@@ -385,7 +465,7 @@ class CategoryServiceTest {
 
         categoryService.deleteCategory(USER_ID, ROOT_ID);
 
-        verify(transactionWriteRepository).clearCategoryForUserAndCategoryIds(eq(USER_ID), idsCaptor.capture());
+        verify(transactionWriteRepository).clearCategoryForUserAndCategoryIds(eq(USER_ID), idsCaptor.capture(), eq(UNCATEGORIZED_CATEGORY_ID));
         assertEquals(Set.of(ROOT_ID, CHILD_ID), new HashSet<>(idsCaptor.getValue()));
 
         verify(categoryRepository).deleteById(CHILD_ID);
@@ -410,6 +490,22 @@ class CategoryServiceTest {
         );
 
         assertEquals(HttpStatus.NOT_FOUND, exception.getStatus());
+    }
+
+    @Test
+    void deleteCategoryRejectsUncategorizedCategory() {
+        Category uncategorized = category(UNCATEGORIZED_CATEGORY_ID, null, true, "Uncategorized");
+
+        when(categoryViewService.getEffectiveCategoryByIdForUser(USER_ID, UNCATEGORIZED_CATEGORY_ID))
+                .thenReturn(Optional.of(uncategorized));
+
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> categoryService.deleteCategory(USER_ID, UNCATEGORIZED_CATEGORY_ID)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verify(transactionWriteRepository, never()).clearCategoryForUserAndCategoryIds(any(), any(), any());
     }
 
     private Category category(Long id, Long parentId, boolean system, String name) {

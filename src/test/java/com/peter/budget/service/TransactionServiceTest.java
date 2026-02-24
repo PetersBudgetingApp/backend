@@ -50,6 +50,7 @@ class TransactionServiceTest {
     private static final long USER_ID = 7L;
     private static final long TRANSACTION_ID = 11L;
     private static final long ACCOUNT_ID = 101L;
+    private static final long UNCATEGORIZED_CATEGORY_ID = 999L;
 
     @Mock
     private TransactionReadRepository transactionReadRepository;
@@ -63,6 +64,8 @@ class TransactionServiceTest {
     private AutoCategorizationService autoCategorizationService;
     @Mock
     private CategoryViewService categoryViewService;
+    @Mock
+    private UncategorizedCategoryService uncategorizedCategoryService;
     @Mock
     private TransferDetectionService transferDetectionService;
 
@@ -84,6 +87,8 @@ class TransactionServiceTest {
                         .build()));
         lenient().when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID))
                 .thenReturn(Map.of());
+        lenient().when(uncategorizedCategoryService.requireSystemUncategorizedCategoryId())
+                .thenReturn(UNCATEGORIZED_CATEGORY_ID);
     }
 
     @Test
@@ -176,6 +181,44 @@ class TransactionServiceTest {
     }
 
     @Test
+    void createTransactionFallsBackToUncategorizedWhenNoRuleMatch() {
+        Account account = Account.builder()
+                .id(ACCOUNT_ID)
+                .userId(USER_ID)
+                .name("Checking")
+                .accountType(AccountType.CHECKING)
+                .build();
+        Category uncategorized = Category.builder()
+                .id(UNCATEGORIZED_CATEGORY_ID)
+                .name("Uncategorized")
+                .categoryType(CategoryType.UNCATEGORIZED)
+                .system(true)
+                .build();
+
+        when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID)).thenReturn(Optional.of(account));
+        when(autoCategorizationService.categorize(USER_ID, ACCOUNT_ID, new BigDecimal("-8.50"), "Coffee shop", null, null))
+                .thenReturn(null);
+        when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID))
+                .thenReturn(Map.of(UNCATEGORIZED_CATEGORY_ID, uncategorized));
+
+        TransactionCreateRequest request = new TransactionCreateRequest();
+        request.setAccountId(ACCOUNT_ID);
+        request.setPostedDate(LocalDate.parse("2026-02-06"));
+        request.setAmount(new BigDecimal("-8.50"));
+        request.setDescription("Coffee shop");
+
+        TransactionDto result = transactionService.createTransaction(USER_ID, request);
+
+        verify(transactionWriteRepository).save(transactionCaptor.capture());
+        Transaction saved = transactionCaptor.getValue();
+        assertEquals(UNCATEGORIZED_CATEGORY_ID, saved.getCategoryId());
+        assertNull(saved.getCategorizedByRuleId());
+        assertFalse(saved.isManuallyCategorized());
+        assertNotNull(result.getCategory());
+        assertEquals(UNCATEGORIZED_CATEGORY_ID, result.getCategory().getId());
+    }
+
+    @Test
     void createTransactionRejectsZeroAmount() {
         when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID)).thenReturn(Optional.of(Account.builder()
                 .id(ACCOUNT_ID)
@@ -214,7 +257,7 @@ class TransactionServiceTest {
 
         verify(transactionWriteRepository).save(transactionCaptor.capture());
         Transaction saved = transactionCaptor.getValue();
-        assertNull(saved.getCategoryId());
+        assertEquals(UNCATEGORIZED_CATEGORY_ID, saved.getCategoryId());
         assertNull(saved.getCategorizedByRuleId());
         assertFalse(saved.isManuallyCategorized());
         assertFalse(result.isManuallyCategorized());
@@ -311,7 +354,7 @@ class TransactionServiceTest {
     @Test
     void getTransactionsForwardsUncategorizedFilter() {
         when(transactionReadRepository.findByUserIdWithFilters(
-                USER_ID, false, null, null, null, null, null, true, null, null, null, 100, 0, false))
+                USER_ID, false, null, null, null, null, UNCATEGORIZED_CATEGORY_ID, false, null, null, null, 100, 0, false))
                 .thenReturn(List.of(baseTransaction()));
 
         List<TransactionDto> result = transactionService.getTransactions(
@@ -319,7 +362,7 @@ class TransactionServiceTest {
 
         assertEquals(1, result.size());
         verify(transactionReadRepository).findByUserIdWithFilters(
-                USER_ID, false, null, null, null, null, null, true, null, null, null, 100, 0, false);
+                USER_ID, false, null, null, null, null, UNCATEGORIZED_CATEGORY_ID, false, null, null, null, 100, 0, false);
     }
 
     @Test
@@ -650,7 +693,7 @@ class TransactionServiceTest {
 
         verify(transactionWriteRepository).save(transactionCaptor.capture());
         Transaction saved = transactionCaptor.getValue();
-        assertNull(saved.getCategoryId());
+        assertEquals(UNCATEGORIZED_CATEGORY_ID, saved.getCategoryId());
         assertNull(saved.getCategorizedByRuleId());
         assertFalse(saved.isManuallyCategorized());
     }

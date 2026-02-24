@@ -36,6 +36,7 @@ class BudgetServiceTest {
 
     private static final long USER_ID = 99L;
     private static final long CATEGORY_ID = 12L;
+    private static final long UNCATEGORIZED_CATEGORY_ID = 13L;
 
     @Mock
     private BudgetTargetRepository budgetTargetRepository;
@@ -106,6 +107,35 @@ class BudgetServiceTest {
         assertEquals(CATEGORY_ID, targets.get(0).categoryId());
         assertEquals(new BigDecimal("500.00"), targets.get(0).targetAmount());
         assertEquals("Groceries", targets.get(0).notes());
+    }
+
+    @Test
+    void upsertBudgetMonthAllowsUncategorizedCategory() {
+        when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID))
+                .thenReturn(Map.of(UNCATEGORIZED_CATEGORY_ID, Category.builder()
+                        .id(UNCATEGORIZED_CATEGORY_ID)
+                        .categoryType(CategoryType.UNCATEGORIZED)
+                        .build()));
+        when(budgetTargetRepository.findByUserIdAndMonthKey(USER_ID, "2026-02"))
+                .thenReturn(List.of());
+
+        budgetService.upsertBudgetMonth(
+                USER_ID,
+                "2026-02",
+                BudgetMonthUpsertRequest.builder()
+                        .targets(List.of(BudgetTargetUpsertRequest.builder()
+                                .categoryId(UNCATEGORIZED_CATEGORY_ID)
+                                .targetAmount(new BigDecimal("125.00"))
+                                .build()))
+                        .build()
+        );
+
+        verify(budgetTargetRepository).replaceMonthTargets(
+                eq(USER_ID),
+                eq("2026-02"),
+                targetsCaptor.capture()
+        );
+        assertEquals(UNCATEGORIZED_CATEGORY_ID, targetsCaptor.getValue().get(0).categoryId());
     }
 
     @Test

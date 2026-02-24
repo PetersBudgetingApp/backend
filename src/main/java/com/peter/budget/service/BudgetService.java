@@ -65,8 +65,9 @@ public class BudgetService {
                     if (category == null) {
                         throw ApiException.badRequest("Category not found: " + categoryId);
                     }
-                    if (category.getCategoryType() != CategoryType.EXPENSE) {
-                        throw ApiException.badRequest("Budgets can only be set on EXPENSE categories");
+                    if (category.getCategoryType() != CategoryType.EXPENSE
+                            && category.getCategoryType() != CategoryType.UNCATEGORIZED) {
+                        throw ApiException.badRequest("Budgets can only be set on EXPENSE or UNCATEGORIZED categories");
                     }
 
                     String normalizedNotes = normalizeNotes(target.getNotes());

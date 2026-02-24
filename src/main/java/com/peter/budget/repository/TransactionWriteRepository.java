@@ -135,7 +135,7 @@ public class TransactionWriteRepository {
         jdbcTemplate.update(sql, params);
     }
 
-    public void clearCategoryForUserAndCategoryIds(Long userId, List<Long> categoryIds) {
+    public void clearCategoryForUserAndCategoryIds(Long userId, List<Long> categoryIds, Long uncategorizedCategoryId) {
         if (categoryIds == null || categoryIds.isEmpty()) {
             return;
         }
@@ -143,7 +143,7 @@ public class TransactionWriteRepository {
         String sql = """
             UPDATE transactions
             SET
-                category_id = NULL,
+                category_id = :uncategorizedCategoryId,
                 categorized_by_rule_id = NULL,
                 is_manually_categorized = false,
                 updated_at = :updatedAt
@@ -155,6 +155,7 @@ public class TransactionWriteRepository {
         var params = new MapSqlParameterSource()
                 .addValue("userId", userId)
                 .addValue("categoryIds", categoryIds)
+                .addValue("uncategorizedCategoryId", uncategorizedCategoryId)
                 .addValue("updatedAt", Timestamp.from(Instant.now()));
 
         jdbcTemplate.update(sql, params);

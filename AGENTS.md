@@ -162,7 +162,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
   - request DTO: `TransactionCreateRequest`
   - `TransactionController.createTransaction` -> `TransactionService.createTransaction` -> `TransactionWriteRepository.save`
   - Validates account ownership and optional category visibility for the authenticated user.
-  - If `categoryId` is omitted, auto-categorization rules are evaluated before save; if provided, transaction is marked manually categorized.
+  - If `categoryId` is omitted, auto-categorization rules are evaluated before save; when no rule matches, backend assigns the system `Uncategorized` category. If a category is provided, transaction is marked manually categorized.
 - `GET /api/v1/transactions/coverage`
   - `TransactionController.getTransactionCoverage` -> `TransactionService.getTransactionCoverage` -> `TransactionReadRepository.getCoverageByUserId`
 - `GET /api/v1/transactions/{id}`
@@ -194,7 +194,8 @@ A new agent should be able to trace any endpoint to controller, service, reposit
   - `CategoryController.updateCategory` -> `CategoryService.updateCategory`
 - `DELETE /api/v1/categories/{id}`
   - `CategoryController.deleteCategory` -> `CategoryService.deleteCategory`
-  - Clears category links from matching user transactions/recurring patterns/rules for the deleted category tree before delete/hide.
+  - Reassigns matching user transactions to the system `Uncategorized` category, clears rule tracking for those transactions, clears recurring/rule links, then deletes/hides the removed category tree.
+  - System `Uncategorized` cannot be created, edited, deleted, or used as a parent.
 
 ### Categorization Rules
 - `GET /api/v1/categorization-rules`
@@ -226,7 +227,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
   - `AnalyticsController.getCashFlow` -> `AnalyticsService.getCashFlow` -> `TransactionAnalyticsRepository.sumByUserIdAndDateRangeAndType`
 - `GET /api/v1/analytics/budget-insights`
   - `AnalyticsController.getBudgetInsights` -> `AnalyticsService.getBudgetInsights`
-  - Combines category spending history (`TransactionAnalyticsRepository.sumByCategory`) with current month budget targets (`BudgetTargetRepository.findByUserIdAndMonthKey`) to return per-category recommendation and month-to-date variance vs historical month-to-date averages.
+  - Combines category spending history (`TransactionAnalyticsRepository.sumByCategory`) with current month budget targets (`BudgetTargetRepository.findByUserIdAndMonthKey`) to return per-category recommendation and month-to-date variance vs historical month-to-date averages for `EXPENSE` + system `UNCATEGORIZED` categories.
   - Recommendation amount uses normalized exponential recency weighting across baseline full-month spend (`0.5`, `0.25`, `0.125`, ...), while `averageMonthlySpend` remains simple arithmetic average for display.
 
 ### Budgets
@@ -269,13 +270,13 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 4. Creating or updating a rule immediately backfills existing non-manually-categorized user transactions.
 5. On local/Docker startup, app can backfill existing transactions per user (`app.categorization.backfill-on-startup`).
 6. Manual trigger also exists at `POST /api/v1/categorization-rules/backfill`.
-7. If a previously auto-categorized transaction no longer matches any active rule, backfill clears both `categorized_by_rule_id` and `category_id`.
+7. If a previously auto-categorized transaction no longer matches any active rule, backfill clears `categorized_by_rule_id` and assigns the system `Uncategorized` category.
 
 ### Manual transaction creation lifecycle
 1. User submits `POST /api/v1/transactions` with account/date/amount/description and optional fields.
 2. Backend validates account belongs to user and optional category is visible to that user.
 3. If category is supplied, transaction is stored as manually categorized.
-4. If category is omitted, backend attempts auto-categorization and stores `categorized_by_rule_id` when matched.
+4. If category is omitted, backend attempts auto-categorization; if no rule matches, it assigns system `Uncategorized`.
 5. Persisted transaction is returned as the same `TransactionDto` contract used by list/detail endpoints.
 
 ### Manual transaction deletion lifecycle
@@ -336,6 +337,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
   - `Account` supports optional `net_worth_category_override` (`BANK_ACCOUNT`, `INVESTMENT`, `LIABILITY`) for dashboard grouping.
   - `Transaction` includes optional `categorized_by_rule_id` linkage when auto-categorized by a rule.
 - Classification: `Category`, `CategorizationRule`
+  - `CategoryType` includes system-only `UNCATEGORIZED` used as the required fallback category for uncategorized transactions.
 - Budgeting: `BudgetTarget`
 - Recurring: `RecurringPattern`
 
@@ -349,6 +351,8 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - `V7__transaction_rule_tracking.sql` adds `categorized_by_rule_id` linkage on transactions.
 - `V8__budget_targets.sql` adds persisted monthly category targets by user.
 - `V9__account_net_worth_category_override.sql` adds optional per-account net worth category override.
+- `V10__categorization_rule_conditions.sql` adds structured rule condition arrays (`conditions_json`) and operator metadata.
+- `V11__normalize_uncategorized_category.sql` normalizes the system uncategorized category type/visibility and backfills legacy `NULL` transaction categories to it.
 
 ## Scheduler Behavior
 - Scheduler class: `scheduler/SyncScheduler.java`
@@ -442,5 +446,5 @@ Use `notes_to_agent/_note_template.md` for note structure.
 
 ## Learned Fixes
 - Transfer-linking flows must preserve `transfer_pair_id`, `is_internal_transfer`, and `exclude_from_totals` when applying category updates; otherwise analytics will overcount transfers as income/expense.
-- Rule-backfill unmatch handling must clear both `categorized_by_rule_id` and `category_id`; clearing only rule tracking leaves stale categories that look like rule updates require restart.
+- Rule-backfill unmatch handling must clear `categorized_by_rule_id` and assign the system `Uncategorized` category; leaving category null breaks budgeting/insights parity with category targets.
 - SimpleFIN stale-account catch-up must rely on provider `balance-date`; setting account staleness from local sync time hides auth-gap windows and misses delayed transaction recovery.

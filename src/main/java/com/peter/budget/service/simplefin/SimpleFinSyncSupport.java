@@ -7,6 +7,7 @@ import com.peter.budget.repository.AccountRepository;
 import com.peter.budget.repository.TransactionReadRepository;
 import com.peter.budget.repository.TransactionWriteRepository;
 import com.peter.budget.service.AutoCategorizationService;
+import com.peter.budget.service.UncategorizedCategoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -23,6 +24,7 @@ public class SimpleFinSyncSupport {
     private final TransactionReadRepository transactionReadRepository;
     private final TransactionWriteRepository transactionWriteRepository;
     private final AutoCategorizationService categorizationService;
+    private final UncategorizedCategoryService uncategorizedCategoryService;
 
     public String summarizeInstitutionNames(List<String> names, String fallback) {
         Set<String> unique = new LinkedHashSet<>();
@@ -76,6 +78,7 @@ public class SimpleFinSyncSupport {
     public SyncTransactionResult syncTransactions(Account account, List<SimpleFinClient.SimpleFinTransaction> transactions) {
         int added = 0;
         int updated = 0;
+        Long uncategorizedCategoryId = uncategorizedCategoryService.requireSystemUncategorizedCategoryId();
 
         for (var sfTx : transactions) {
             var existing = transactionReadRepository
@@ -94,14 +97,15 @@ public class SimpleFinSyncSupport {
                     changed = true;
                 }
 
-                if (tx.getCategoryId() == null && !tx.isManuallyCategorized()) {
+                if (!tx.isManuallyCategorized() && (tx.getCategoryId() == null || tx.getCategorizedByRuleId() != null)) {
                     AutoCategorizationService.CategorizationMatch match = categorizationService.categorize(
                             account.getUserId(), account.getId(), sfTx.amount(), sfTx.description(), sfTx.payee(), sfTx.memo());
                     if (match != null) {
                         tx.setCategoryId(match.categoryId());
                         tx.setCategorizedByRuleId(match.ruleId());
                         changed = true;
-                    } else if (tx.getCategorizedByRuleId() != null) {
+                    } else {
+                        tx.setCategoryId(uncategorizedCategoryId);
                         tx.setCategorizedByRuleId(null);
                         changed = true;
                     }
@@ -129,6 +133,10 @@ public class SimpleFinSyncSupport {
                 if (match != null) {
                     tx.setCategoryId(match.categoryId());
                     tx.setCategorizedByRuleId(match.ruleId());
+                    tx.setManuallyCategorized(false);
+                } else {
+                    tx.setCategoryId(uncategorizedCategoryId);
+                    tx.setCategorizedByRuleId(null);
                     tx.setManuallyCategorized(false);
                 }
 

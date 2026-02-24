@@ -7,6 +7,8 @@ import com.peter.budget.repository.AccountRepository;
 import com.peter.budget.repository.TransactionReadRepository;
 import com.peter.budget.repository.TransactionWriteRepository;
 import com.peter.budget.service.AutoCategorizationService;
+import com.peter.budget.service.UncategorizedCategoryService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -26,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,6 +39,7 @@ class SimpleFinSyncSupportTest {
     private static final long USER_ID = 7L;
     private static final long CONNECTION_ID = 10L;
     private static final long ACCOUNT_ID = 100L;
+    private static final long UNCATEGORIZED_CATEGORY_ID = 999L;
 
     @Mock
     private AccountRepository accountRepository;
@@ -45,6 +49,8 @@ class SimpleFinSyncSupportTest {
     private TransactionWriteRepository transactionWriteRepository;
     @Mock
     private AutoCategorizationService categorizationService;
+    @Mock
+    private UncategorizedCategoryService uncategorizedCategoryService;
 
     @InjectMocks
     private SimpleFinSyncSupport syncSupport;
@@ -53,6 +59,12 @@ class SimpleFinSyncSupportTest {
     private ArgumentCaptor<Account> accountCaptor;
     @Captor
     private ArgumentCaptor<Transaction> transactionCaptor;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(uncategorizedCategoryService.requireSystemUncategorizedCategoryId())
+                .thenReturn(UNCATEGORIZED_CATEGORY_ID);
+    }
 
     // --- summarizeInstitutionNames tests ---
 
@@ -372,7 +384,7 @@ class SimpleFinSyncSupportTest {
         syncSupport.syncTransactions(account, List.of(sfTx));
 
         verify(transactionWriteRepository).save(transactionCaptor.capture());
-        assertNull(transactionCaptor.getValue().getCategoryId());
+        assertEquals(UNCATEGORIZED_CATEGORY_ID, transactionCaptor.getValue().getCategoryId());
         assertNull(transactionCaptor.getValue().getCategorizedByRuleId());
     }
 

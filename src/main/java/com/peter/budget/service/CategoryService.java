@@ -31,6 +31,7 @@ public class CategoryService {
     private final RecurringPatternRepository recurringPatternRepository;
     private final CategorizationRuleRepository categorizationRuleRepository;
     private final CategoryViewService categoryViewService;
+    private final UncategorizedCategoryService uncategorizedCategoryService;
 
     public List<CategoryDto> getCategoriesForUser(Long userId) {
         List<Category> allCategories = categoryViewService.getEffectiveCategoriesForUser(userId);
@@ -51,7 +52,9 @@ public class CategoryService {
 
     @Transactional
     public CategoryDto createCategory(Long userId, CategoryCreateRequest request) {
-        validateParentCategory(userId, request.getParentId(), null);
+        Long uncategorizedCategoryId = uncategorizedCategoryService.requireSystemUncategorizedCategoryId();
+        validateRequestedCategoryType(request.getCategoryType());
+        validateParentCategory(userId, request.getParentId(), null, uncategorizedCategoryId);
 
         Category category = Category.builder()
                 .userId(userId)
@@ -74,7 +77,13 @@ public class CategoryService {
         Category category = categoryRepository.findByIdForUser(categoryId, userId)
                 .orElseThrow(() -> ApiException.notFound("Category not found"));
 
-        validateParentCategory(userId, request.getParentId(), categoryId);
+        Long uncategorizedCategoryId = uncategorizedCategoryService.requireSystemUncategorizedCategoryId();
+        if (category.getId().equals(uncategorizedCategoryId)) {
+            throw ApiException.badRequest("Uncategorized category cannot be modified");
+        }
+
+        validateRequestedCategoryType(request.getCategoryType());
+        validateParentCategory(userId, request.getParentId(), categoryId, uncategorizedCategoryId);
 
         if (category.isSystem()) {
             return updateSystemCategory(userId, category, request);
@@ -96,10 +105,14 @@ public class CategoryService {
     public void deleteCategory(Long userId, Long categoryId) {
         Category category = categoryViewService.getEffectiveCategoryByIdForUser(userId, categoryId)
                 .orElseThrow(() -> ApiException.notFound("Category not found"));
+        Long uncategorizedCategoryId = uncategorizedCategoryService.requireSystemUncategorizedCategoryId();
+        if (category.getId().equals(uncategorizedCategoryId)) {
+            throw ApiException.badRequest("Uncategorized category cannot be deleted");
+        }
 
         List<Category> allCategories = categoryViewService.getEffectiveCategoriesForUser(userId);
         List<Category> categoryTree = collectCategoryTree(category.getId(), allCategories);
-        removeCategoryTreeForUser(userId, categoryTree);
+        removeCategoryTreeForUser(userId, categoryTree, uncategorizedCategoryId);
     }
 
     private CategoryDto updateSystemCategory(Long userId, Category category, CategoryCreateRequest request) {
@@ -131,12 +144,12 @@ public class CategoryService {
         return toDto(updatedCategory);
     }
 
-    private void removeCategoryTreeForUser(Long userId, List<Category> categoriesToRemove) {
+    private void removeCategoryTreeForUser(Long userId, List<Category> categoriesToRemove, Long uncategorizedCategoryId) {
         List<Long> categoryIds = categoriesToRemove.stream()
                 .map(Category::getId)
                 .toList();
 
-        transactionWriteRepository.clearCategoryForUserAndCategoryIds(userId, categoryIds);
+        transactionWriteRepository.clearCategoryForUserAndCategoryIds(userId, categoryIds, uncategorizedCategoryId);
         recurringPatternRepository.clearCategoryForUserAndCategoryIds(userId, categoryIds);
         categorizationRuleRepository.deleteByUserIdAndCategoryIds(userId, categoryIds);
 
@@ -163,7 +176,7 @@ public class CategoryService {
         }
     }
 
-    private void validateParentCategory(Long userId, Long parentId, Long categoryId) {
+    private void validateParentCategory(Long userId, Long parentId, Long categoryId, Long uncategorizedCategoryId) {
         if (parentId == null) {
             return;
         }
@@ -172,8 +185,17 @@ public class CategoryService {
             throw ApiException.badRequest("Category cannot be its own parent");
         }
 
-        categoryViewService.getEffectiveCategoryByIdForUser(userId, parentId)
+        Category parentCategory = categoryViewService.getEffectiveCategoryByIdForUser(userId, parentId)
                 .orElseThrow(() -> ApiException.notFound("Parent category not found"));
+        if (parentCategory.getId().equals(uncategorizedCategoryId)) {
+            throw ApiException.badRequest("Uncategorized category cannot have children");
+        }
+    }
+
+    private void validateRequestedCategoryType(CategoryType categoryType) {
+        if (categoryType == CategoryType.UNCATEGORIZED) {
+            throw ApiException.badRequest("Uncategorized type is reserved for the system category");
+        }
     }
 
     private List<Category> collectCategoryTree(Long rootCategoryId, List<Category> allCategories) {

@@ -163,7 +163,7 @@ public class AnalyticsService {
 
         Set<Long> relevantCategoryIds = new HashSet<>();
         categoryMap.values().stream()
-                .filter(category -> category.getCategoryType() == CategoryType.EXPENSE)
+                .filter(this::isBudgetableCategory)
                 .map(Category::getId)
                 .forEach(relevantCategoryIds::add);
         relevantCategoryIds.addAll(budgetByCategoryId.keySet());
@@ -181,7 +181,7 @@ public class AnalyticsService {
             }
 
             Category category = categoryMap.get(categoryId);
-            if (category != null && category.getCategoryType() != CategoryType.EXPENSE) {
+            if (category != null && !isBudgetableCategory(category)) {
                 continue;
             }
 
@@ -385,5 +385,10 @@ public class AnalyticsService {
         return deltaAmount
                 .multiply(BigDecimal.valueOf(100))
                 .divide(baselineAmount, 2, RoundingMode.HALF_UP);
+    }
+
+    private boolean isBudgetableCategory(Category category) {
+        return category.getCategoryType() == CategoryType.EXPENSE
+                || category.getCategoryType() == CategoryType.UNCATEGORIZED;
     }
 }
