@@ -3,6 +3,7 @@ package com.peter.budget.model.dto;
 import com.peter.budget.model.enums.AccountNetWorthCategory;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -25,6 +26,6 @@ public class AccountCreateRequest {
     @NotNull(message = "Current balance is required")
     private BigDecimal currentBalance;
 
-    @Size(min = 3, max = 3, message = "Currency must be a 3-letter code")
+    @Pattern(regexp = "^[A-Za-z]{3}$", message = "Currency code must be 3 characters")
     private String currency;
 }
