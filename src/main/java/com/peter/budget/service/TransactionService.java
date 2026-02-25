@@ -152,8 +152,10 @@ public class TransactionService {
         }
 
         Transaction saved = transactionWriteRepository.save(tx);
-        applyBalanceDelta(account, request.getAmount());
-        accountRepository.save(account);
+        if (shouldTrackBalanceFromManualTransactions(account)) {
+            applyBalanceDelta(account, request.getAmount());
+            accountRepository.save(account);
+        }
 
         Map<Long, Account> accountCache = new HashMap<>();
         Map<Long, Category> categoryMap = categoryViewService.getEffectiveCategoryMapForUser(userId);
@@ -288,8 +290,10 @@ public class TransactionService {
 
         transactionWriteRepository.deleteById(transactionId);
         accountRepository.findByIdAndUserId(tx.getAccountId(), userId).ifPresent(account -> {
-            applyBalanceDelta(account, tx.getAmount().negate());
-            accountRepository.save(account);
+            if (shouldTrackBalanceFromManualTransactions(account)) {
+                applyBalanceDelta(account, tx.getAmount().negate());
+                accountRepository.save(account);
+            }
         });
     }
 
@@ -382,5 +386,9 @@ public class TransactionService {
         account.setCurrentBalance(updatedBalance);
         account.setAvailableBalance(updatedBalance);
         account.setBalanceUpdatedAt(Instant.now());
+    }
+
+    private boolean shouldTrackBalanceFromManualTransactions(Account account) {
+        return account.getConnectionId() == null;
     }
 }

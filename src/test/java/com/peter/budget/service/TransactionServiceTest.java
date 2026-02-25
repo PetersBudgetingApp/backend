@@ -219,6 +219,31 @@ class TransactionServiceTest {
     }
 
     @Test
+    void createTransactionDoesNotAdjustBalanceForConnectedAccount() {
+        Account connectedAccount = Account.builder()
+                .id(ACCOUNT_ID)
+                .userId(USER_ID)
+                .connectionId(444L)
+                .name("Connected Checking")
+                .accountType(AccountType.CHECKING)
+                .build();
+
+        when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID)).thenReturn(Optional.of(connectedAccount));
+        when(autoCategorizationService.categorize(USER_ID, ACCOUNT_ID, new BigDecimal("-8.50"), "Coffee shop", null, null))
+                .thenReturn(null);
+
+        TransactionCreateRequest request = new TransactionCreateRequest();
+        request.setAccountId(ACCOUNT_ID);
+        request.setPostedDate(LocalDate.parse("2026-02-06"));
+        request.setAmount(new BigDecimal("-8.50"));
+        request.setDescription("Coffee shop");
+
+        transactionService.createTransaction(USER_ID, request);
+
+        verify(accountRepository, never()).save(connectedAccount);
+    }
+
+    @Test
     void createTransactionRejectsZeroAmount() {
         when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID)).thenReturn(Optional.of(Account.builder()
                 .id(ACCOUNT_ID)
@@ -559,6 +584,27 @@ class TransactionServiceTest {
 
         verify(transferDetectionService).unlinkTransfer(USER_ID, TRANSACTION_ID);
         verify(transactionWriteRepository).deleteById(TRANSACTION_ID);
+    }
+
+    @Test
+    void deleteTransactionDoesNotAdjustBalanceForConnectedAccount() {
+        Transaction manual = baseTransaction();
+        manual.setExternalId(null);
+
+        Account connectedAccount = Account.builder()
+                .id(ACCOUNT_ID)
+                .userId(USER_ID)
+                .connectionId(321L)
+                .currentBalance(new BigDecimal("1000.00"))
+                .build();
+
+        when(transactionReadRepository.findByIdAndUserId(TRANSACTION_ID, USER_ID)).thenReturn(Optional.of(manual));
+        when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID)).thenReturn(Optional.of(connectedAccount));
+
+        transactionService.deleteTransaction(USER_ID, TRANSACTION_ID);
+
+        verify(transactionWriteRepository).deleteById(TRANSACTION_ID);
+        verify(accountRepository, never()).save(connectedAccount);
     }
 
     // --- Delegation methods ---

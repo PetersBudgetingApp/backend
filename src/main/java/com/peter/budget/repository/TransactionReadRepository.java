@@ -248,6 +248,20 @@ public class TransactionReadRepository {
 
     public record TransactionCoverageStats(long totalCount, Instant oldestPostedAt, Instant newestPostedAt) {}
 
+    public long countByUserIdAndAccountId(Long userId, Long accountId) {
+        String sql = """
+            SELECT COUNT(t.id)
+            FROM transactions t
+            JOIN accounts a ON t.account_id = a.id
+            WHERE a.user_id = :userId AND a.id = :accountId
+            """;
+        var params = new MapSqlParameterSource()
+                .addValue("userId", userId)
+                .addValue("accountId", accountId);
+        Long count = jdbcTemplate.queryForObject(sql, params, Long.class);
+        return count != null ? count : 0L;
+    }
+
     private String normalizeSearchQuery(String query) {
         if (query == null) {
             return null;

@@ -2,6 +2,7 @@ package com.peter.budget.service;
 
 import com.peter.budget.exception.ApiException;
 import com.peter.budget.model.dto.AccountCreateRequest;
+import com.peter.budget.model.dto.AccountDeletionPreviewDto;
 import com.peter.budget.model.dto.AccountDto;
 import com.peter.budget.model.dto.AccountNetWorthCategoryUpdateRequest;
 import com.peter.budget.model.dto.AccountSummaryDto;
@@ -9,6 +10,7 @@ import com.peter.budget.model.entity.Account;
 import com.peter.budget.model.enums.AccountNetWorthCategory;
 import com.peter.budget.model.enums.AccountType;
 import com.peter.budget.repository.AccountRepository;
+import com.peter.budget.repository.TransactionReadRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +24,7 @@ import java.util.Locale;
 public class AccountService {
 
     private final AccountRepository accountRepository;
+    private final TransactionReadRepository transactionReadRepository;
 
     public List<AccountDto> getAccounts(Long userId) {
         return accountRepository.findActiveByUserId(userId).stream()
@@ -76,6 +79,28 @@ public class AccountService {
         Account account = accountRepository.findByIdAndUserId(accountId, userId)
                 .orElseThrow(() -> ApiException.notFound("Account not found"));
         return toDto(account);
+    }
+
+    public AccountDeletionPreviewDto getDeletionPreview(Long userId, Long accountId) {
+        Account account = accountRepository.findByIdAndUserId(accountId, userId)
+                .orElseThrow(() -> ApiException.notFound("Account not found"));
+
+        long transactionCount = transactionReadRepository.countByUserIdAndAccountId(userId, accountId);
+        return AccountDeletionPreviewDto.builder()
+                .transactionCount(transactionCount)
+                .canDelete(isManuallyCreatedAccount(account))
+                .build();
+    }
+
+    public void deleteAccount(Long userId, Long accountId) {
+        Account account = accountRepository.findByIdAndUserId(accountId, userId)
+                .orElseThrow(() -> ApiException.notFound("Account not found"));
+
+        if (!isManuallyCreatedAccount(account)) {
+            throw ApiException.badRequest("Only manually created accounts can be deleted");
+        }
+
+        accountRepository.deleteByIdAndUserId(accountId, userId);
     }
 
     public AccountDto updateNetWorthCategory(Long userId, Long accountId, AccountNetWorthCategoryUpdateRequest request) {
@@ -169,5 +194,9 @@ public class AccountService {
             case INVESTMENT -> AccountType.INVESTMENT;
             case LIABILITY -> AccountType.LOAN;
         };
+    }
+
+    private boolean isManuallyCreatedAccount(Account account) {
+        return account.getConnectionId() == null;
     }
 }

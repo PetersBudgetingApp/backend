@@ -2,6 +2,7 @@ package com.peter.budget.controller;
 
 import com.peter.budget.config.JwtAuthFilter;
 import com.peter.budget.model.dto.AccountCreateRequest;
+import com.peter.budget.model.dto.AccountDeletionPreviewDto;
 import com.peter.budget.model.dto.AccountDto;
 import com.peter.budget.model.dto.AccountNetWorthCategoryUpdateRequest;
 import com.peter.budget.model.dto.AccountSummaryDto;
@@ -49,6 +50,22 @@ public class AccountController {
             @PathVariable Long id) {
         AccountDto account = accountService.getAccount(principal.userId(), id);
         return ResponseEntity.ok(account);
+    }
+
+    @GetMapping("/{id}/deletion-preview")
+    public ResponseEntity<AccountDeletionPreviewDto> getDeletionPreview(
+            @AuthenticationPrincipal JwtAuthFilter.UserPrincipal principal,
+            @PathVariable Long id) {
+        AccountDeletionPreviewDto preview = accountService.getDeletionPreview(principal.userId(), id);
+        return ResponseEntity.ok(preview);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteAccount(
+            @AuthenticationPrincipal JwtAuthFilter.UserPrincipal principal,
+            @PathVariable Long id) {
+        accountService.deleteAccount(principal.userId(), id);
+        return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}/net-worth-category")

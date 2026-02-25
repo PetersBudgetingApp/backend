@@ -153,6 +153,13 @@ A new agent should be able to trace any endpoint to controller, service, reposit
   - `AccountController.getAccountSummary` -> `AccountService.getAccountSummary`
 - `GET /api/v1/accounts/{id}`
   - `AccountController.getAccount` -> `AccountService.getAccount`
+- `GET /api/v1/accounts/{id}/deletion-preview`
+  - `AccountController.getDeletionPreview` -> `AccountService.getDeletionPreview`
+  - Returns `transactionCount` and `canDelete` (manual accounts only).
+- `DELETE /api/v1/accounts/{id}`
+  - `AccountController.deleteAccount` -> `AccountService.deleteAccount`
+  - Only manually created accounts (`connection_id IS NULL`) can be deleted.
+  - Deleting an account cascades deletes to associated transactions.
 - `PATCH /api/v1/accounts/{id}/net-worth-category`
   - request DTO: `AccountNetWorthCategoryUpdateRequest`
   - `AccountController.updateAccountNetWorthCategory` -> `AccountService.updateNetWorthCategory`
@@ -281,14 +288,17 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 2. Backend validates account belongs to user and optional category is visible to that user.
 3. If category is supplied, transaction is stored as manually categorized.
 4. If category is omitted, backend attempts auto-categorization; if no rule matches, it assigns system `Uncategorized`.
-5. Persisted transaction is returned as the same `TransactionDto` contract used by list/detail endpoints.
+5. Balance auto-adjust applies only for manual accounts (`connection_id IS NULL`); connected SimpleFIN balances are not transaction-summed.
+6. Persisted transaction is returned as the same `TransactionDto` contract used by list/detail endpoints.
 
 ### Manual transaction deletion lifecycle
 1. User requests `DELETE /api/v1/transactions/{id}`.
 2. Backend verifies the transaction belongs to the authenticated user.
 3. Backend rejects deletion for imported entries (`external_id` present).
 4. If paired as transfer, backend unlinks transfer flags from both sides first.
-5. Transaction row is deleted and endpoint returns `204 No Content`.
+5. Transaction row is deleted.
+6. Balance rollback applies only for manual accounts (`connection_id IS NULL`); connected SimpleFIN balances remain provider-sourced.
+7. Endpoint returns `204 No Content`.
 
 ### SimpleFIN setup lifecycle
 1. Setup token is Base64 URL-decoded into claim URL.
@@ -379,7 +389,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - Now surfaced in frontend:
   - recurring management endpoints (list, detect, upcoming, toggle, delete)
   - transfer pair management endpoints (list, mark, unlink)
-  - account detail endpoints (`GET /accounts/{id}`, `PATCH /accounts/{id}/net-worth-category`)
+  - account detail endpoints (`GET /accounts/{id}`, `PATCH /accounts/{id}/net-worth-category`, `GET /accounts/{id}/deletion-preview`, `DELETE /accounts/{id}`)
   - manual account creation (`POST /accounts`)
 
 ## Common Debug Paths

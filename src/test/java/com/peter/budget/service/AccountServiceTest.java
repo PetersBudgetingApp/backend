@@ -8,6 +8,7 @@ import com.peter.budget.model.entity.Account;
 import com.peter.budget.model.enums.AccountNetWorthCategory;
 import com.peter.budget.model.enums.AccountType;
 import com.peter.budget.repository.AccountRepository;
+import com.peter.budget.repository.TransactionReadRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -33,6 +35,8 @@ class AccountServiceTest {
 
     @Mock
     private AccountRepository accountRepository;
+    @Mock
+    private TransactionReadRepository transactionReadRepository;
 
     @InjectMocks
     private AccountService accountService;
@@ -220,6 +224,60 @@ class AccountServiceTest {
 
         assertEquals(AccountNetWorthCategory.LIABILITY, account.getNetWorthCategoryOverride());
         assertEquals(AccountNetWorthCategory.LIABILITY, result.getNetWorthCategory());
+    }
+
+    @Test
+    void getDeletionPreviewAllowsManualAccountAndIncludesTransactionCount() {
+        Account account = account(1L, AccountType.CHECKING, "500.00");
+        account.setConnectionId(null);
+
+        when(accountRepository.findByIdAndUserId(1L, USER_ID)).thenReturn(Optional.of(account));
+        when(transactionReadRepository.countByUserIdAndAccountId(USER_ID, 1L)).thenReturn(14L);
+
+        var preview = accountService.getDeletionPreview(USER_ID, 1L);
+
+        assertEquals(14L, preview.getTransactionCount());
+        assertTrue(preview.isCanDelete());
+    }
+
+    @Test
+    void getDeletionPreviewDisablesDeleteForConnectedAccount() {
+        Account account = account(2L, AccountType.CHECKING, "500.00");
+        account.setConnectionId(88L);
+
+        when(accountRepository.findByIdAndUserId(2L, USER_ID)).thenReturn(Optional.of(account));
+        when(transactionReadRepository.countByUserIdAndAccountId(USER_ID, 2L)).thenReturn(3L);
+
+        var preview = accountService.getDeletionPreview(USER_ID, 2L);
+
+        assertEquals(3L, preview.getTransactionCount());
+        assertFalse(preview.isCanDelete());
+    }
+
+    @Test
+    void deleteAccountRejectsConnectedAccount() {
+        Account account = account(3L, AccountType.CHECKING, "500.00");
+        account.setConnectionId(55L);
+
+        when(accountRepository.findByIdAndUserId(3L, USER_ID)).thenReturn(Optional.of(account));
+
+        ApiException exception = assertThrows(ApiException.class, () -> accountService.deleteAccount(USER_ID, 3L));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        assertEquals("Only manually created accounts can be deleted", exception.getMessage());
+    }
+
+    @Test
+    void deleteAccountDeletesManualAccount() {
+        Account account = account(4L, AccountType.CHECKING, "500.00");
+        account.setConnectionId(null);
+
+        when(accountRepository.findByIdAndUserId(4L, USER_ID)).thenReturn(Optional.of(account));
+        when(accountRepository.deleteByIdAndUserId(4L, USER_ID)).thenReturn(1);
+
+        accountService.deleteAccount(USER_ID, 4L);
+
+        org.mockito.Mockito.verify(accountRepository).deleteByIdAndUserId(4L, USER_ID);
     }
 
     private Account account(Long id, AccountType type, String balance) {

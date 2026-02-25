@@ -113,6 +113,14 @@ public class AccountRepository {
         jdbcTemplate.update(sql, params);
     }
 
+    public int deleteByIdAndUserId(Long accountId, Long userId) {
+        String sql = "DELETE FROM accounts WHERE id = :accountId AND user_id = :userId";
+        var params = new MapSqlParameterSource()
+                .addValue("accountId", accountId)
+                .addValue("userId", userId);
+        return jdbcTemplate.update(sql, params);
+    }
+
     public Account save(Account account) {
         if (account.getId() == null) {
             return insert(account);
