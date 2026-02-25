@@ -145,6 +145,10 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 ### Accounts
 - `GET /api/v1/accounts`
   - `AccountController.getAccounts` -> `AccountService.getAccounts`
+- `POST /api/v1/accounts`
+  - request DTO: `AccountCreateRequest`
+  - `AccountController.createAccount` -> `AccountService.createAccount`
+  - Creates a manual user-owned account with server defaults for omitted institution/currency.
 - `GET /api/v1/accounts/summary`
   - `AccountController.getAccountSummary` -> `AccountService.getAccountSummary`
 - `GET /api/v1/accounts/{id}`
@@ -367,7 +371,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - Actively used by current frontend:
   - auth endpoints
   - connections endpoints
-  - accounts list + summary
+  - accounts list/create + summary
   - transactions list/create/coverage/update/delete
   - categories CRUD/list
   - analytics spending/cashflow (trends endpoint exists, not currently wired to visible dashboard chart)
@@ -376,6 +380,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
   - recurring management endpoints (list, detect, upcoming, toggle, delete)
   - transfer pair management endpoints (list, mark, unlink)
   - account detail endpoints (`GET /accounts/{id}`, `PATCH /accounts/{id}/net-worth-category`)
+  - manual account creation (`POST /accounts`)
 
 ## Common Debug Paths
 - Unauthorized/auth failures:

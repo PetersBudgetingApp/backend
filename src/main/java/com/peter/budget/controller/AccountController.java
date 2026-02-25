@@ -1,6 +1,7 @@
 package com.peter.budget.controller;
 
 import com.peter.budget.config.JwtAuthFilter;
+import com.peter.budget.model.dto.AccountCreateRequest;
 import com.peter.budget.model.dto.AccountDto;
 import com.peter.budget.model.dto.AccountNetWorthCategoryUpdateRequest;
 import com.peter.budget.model.dto.AccountSummaryDto;
@@ -25,6 +26,14 @@ public class AccountController {
             @AuthenticationPrincipal JwtAuthFilter.UserPrincipal principal) {
         List<AccountDto> accounts = accountService.getAccounts(principal.userId());
         return ResponseEntity.ok(accounts);
+    }
+
+    @PostMapping
+    public ResponseEntity<AccountDto> createAccount(
+            @AuthenticationPrincipal JwtAuthFilter.UserPrincipal principal,
+            @Valid @RequestBody AccountCreateRequest request) {
+        AccountDto account = accountService.createAccount(principal.userId(), request);
+        return ResponseEntity.status(201).body(account);
     }
 
     @GetMapping("/summary")

@@ -1,6 +1,7 @@
 package com.peter.budget.service;
 
 import com.peter.budget.exception.ApiException;
+import com.peter.budget.model.dto.AccountCreateRequest;
 import com.peter.budget.model.dto.AccountDto;
 import com.peter.budget.model.dto.AccountNetWorthCategoryUpdateRequest;
 import com.peter.budget.model.dto.AccountSummaryDto;
@@ -12,7 +13,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +27,49 @@ public class AccountService {
         return accountRepository.findActiveByUserId(userId).stream()
                 .map(this::toDto)
                 .toList();
+    }
+
+    public AccountDto createAccount(Long userId, AccountCreateRequest request) {
+        String name = request.getName() != null ? request.getName().trim() : "";
+        if (name.isEmpty()) {
+            throw ApiException.badRequest("Name is required");
+        }
+
+        String institutionName = request.getInstitutionName() != null
+                ? request.getInstitutionName().trim()
+                : "";
+        if (institutionName.isEmpty()) {
+            institutionName = "User Added";
+        }
+
+        String requestedCurrency = request.getCurrency() != null
+                ? request.getCurrency().trim().toUpperCase(Locale.ROOT)
+                : "";
+        String currency = requestedCurrency.isEmpty()
+                ? accountRepository.findActiveByUserId(userId).stream()
+                    .findFirst()
+                    .map(Account::getCurrency)
+                    .orElse("USD")
+                : requestedCurrency;
+
+        Instant now = Instant.now();
+        Account account = Account.builder()
+                .userId(userId)
+                .connectionId(null)
+                .externalId(null)
+                .name(name)
+                .institutionName(institutionName)
+                .accountType(accountTypeForCategory(request.getNetWorthCategory()))
+                .netWorthCategoryOverride(request.getNetWorthCategory())
+                .currency(currency)
+                .currentBalance(request.getCurrentBalance())
+                .availableBalance(request.getCurrentBalance())
+                .balanceUpdatedAt(now)
+                .active(true)
+                .build();
+
+        Account created = accountRepository.save(account);
+        return toDto(created);
     }
 
     public AccountDto getAccount(Long userId, Long accountId) {
@@ -115,5 +161,13 @@ public class AccountService {
         return balance.signum() < 0
                 ? AccountNetWorthCategory.LIABILITY
                 : AccountNetWorthCategory.BANK_ACCOUNT;
+    }
+
+    private AccountType accountTypeForCategory(AccountNetWorthCategory category) {
+        return switch (category) {
+            case BANK_ACCOUNT -> AccountType.CHECKING;
+            case INVESTMENT -> AccountType.INVESTMENT;
+            case LIABILITY -> AccountType.LOAN;
+        };
     }
 }

@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.HashMap;
@@ -151,6 +152,8 @@ public class TransactionService {
         }
 
         Transaction saved = transactionWriteRepository.save(tx);
+        applyBalanceDelta(account, request.getAmount());
+        accountRepository.save(account);
 
         Map<Long, Account> accountCache = new HashMap<>();
         Map<Long, Category> categoryMap = categoryViewService.getEffectiveCategoryMapForUser(userId);
@@ -284,6 +287,10 @@ public class TransactionService {
         }
 
         transactionWriteRepository.deleteById(transactionId);
+        accountRepository.findByIdAndUserId(tx.getAccountId(), userId).ifPresent(account -> {
+            applyBalanceDelta(account, tx.getAmount().negate());
+            accountRepository.save(account);
+        });
     }
 
     public List<TransferPairDto> getTransfers(Long userId) {
@@ -367,5 +374,13 @@ public class TransactionService {
     private java.time.Instant toCanonicalDateInstant(LocalDate date) {
         // Noon UTC avoids prior-day rendering for UTC-negative browser time zones.
         return date.atTime(12, 0).toInstant(ZoneOffset.UTC);
+    }
+
+    private void applyBalanceDelta(Account account, BigDecimal delta) {
+        BigDecimal current = account.getCurrentBalance() != null ? account.getCurrentBalance() : BigDecimal.ZERO;
+        BigDecimal updatedBalance = current.add(delta);
+        account.setCurrentBalance(updatedBalance);
+        account.setAvailableBalance(updatedBalance);
+        account.setBalanceUpdatedAt(Instant.now());
     }
 }
