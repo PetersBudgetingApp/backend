@@ -140,6 +140,7 @@ public class MigrationImportRequest {
         private String month;
         private String currency;
         private List<SnapshotBudgetTarget> targets;
+        private Boolean hasChangesInMonth;
     }
 
     @Data

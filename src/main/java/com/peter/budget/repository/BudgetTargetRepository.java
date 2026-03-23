@@ -44,6 +44,14 @@ public class BudgetTargetRepository {
         return jdbcTemplate.query(sql, params, java.util.Objects.requireNonNull(ROW_MAPPER));
     }
 
+    public List<BudgetTarget> findEffectiveByUserIdAndMonthKey(Long userId, String monthKey) {
+        return findLatestByUserIdAndMonthKey(userId, monthKey, false);
+    }
+
+    public List<BudgetTarget> findLatestByUserIdAndMonthKey(Long userId, String monthKey) {
+        return findLatestByUserIdAndMonthKey(userId, monthKey, true);
+    }
+
     public void replaceMonthTargets(Long userId, String monthKey, List<UpsertBudgetTarget> targets) {
         String deleteSql = """
             DELETE FROM budget_targets
@@ -81,6 +89,37 @@ public class BudgetTargetRepository {
         jdbcTemplate.batchUpdate(insertSql, java.util.Objects.requireNonNull(batch));
     }
 
+    public void upsertMonthTargets(Long userId, String monthKey, List<UpsertBudgetTarget> targets) {
+        if (targets == null || targets.isEmpty()) {
+            return;
+        }
+
+        String sql = """
+            INSERT INTO budget_targets (user_id, month_key, category_id, target_amount, notes, created_at, updated_at)
+            VALUES (:userId, :monthKey, :categoryId, :targetAmount, :notes, :createdAt, :updatedAt)
+            ON CONFLICT (user_id, month_key, category_id)
+            DO UPDATE SET
+                target_amount = EXCLUDED.target_amount,
+                notes = EXCLUDED.notes,
+                updated_at = EXCLUDED.updated_at
+            """;
+
+        Instant now = Instant.now();
+        Timestamp nowTimestamp = Timestamp.from(now);
+        MapSqlParameterSource[] batch = targets.stream()
+                .map(target -> new MapSqlParameterSource()
+                        .addValue("userId", userId)
+                        .addValue("monthKey", monthKey)
+                        .addValue("categoryId", target.categoryId())
+                        .addValue("targetAmount", target.targetAmount())
+                        .addValue("notes", target.notes())
+                        .addValue("createdAt", nowTimestamp)
+                        .addValue("updatedAt", nowTimestamp))
+                .toArray(MapSqlParameterSource[]::new);
+
+        jdbcTemplate.batchUpdate(sql, java.util.Objects.requireNonNull(batch));
+    }
+
     public void deleteByUserIdAndMonthKeyAndCategoryId(Long userId, String monthKey, Long categoryId) {
         String sql = """
             DELETE FROM budget_targets
@@ -94,6 +133,45 @@ public class BudgetTargetRepository {
                 .addValue("monthKey", monthKey)
                 .addValue("categoryId", categoryId);
         jdbcTemplate.update(sql, params);
+    }
+
+    public boolean existsByUserIdAndMonthKey(Long userId, String monthKey) {
+        String sql = """
+            SELECT EXISTS(
+                SELECT 1
+                FROM budget_targets
+                WHERE user_id = :userId
+                  AND month_key = :monthKey
+            )
+            """;
+
+        var params = new MapSqlParameterSource()
+                .addValue("userId", userId)
+                .addValue("monthKey", monthKey);
+
+        Boolean exists = jdbcTemplate.queryForObject(sql, params, Boolean.class);
+        return Boolean.TRUE.equals(exists);
+    }
+
+    private List<BudgetTarget> findLatestByUserIdAndMonthKey(Long userId, String monthKey, boolean includeZeroTargets) {
+        String sql = """
+            SELECT latest.*
+            FROM (
+                SELECT DISTINCT ON (category_id) *
+                FROM budget_targets
+                WHERE user_id = :userId
+                  AND month_key <= :monthKey
+                ORDER BY category_id, month_key DESC, updated_at DESC, id DESC
+            ) latest
+            %s
+            ORDER BY latest.category_id
+            """.formatted(includeZeroTargets ? "" : "WHERE latest.target_amount > 0");
+
+        var params = new MapSqlParameterSource()
+                .addValue("userId", userId)
+                .addValue("monthKey", monthKey);
+
+        return jdbcTemplate.query(sql, params, java.util.Objects.requireNonNull(ROW_MAPPER));
     }
 
     public record UpsertBudgetTarget(Long categoryId, BigDecimal targetAmount, String notes) {}

@@ -238,17 +238,20 @@ A new agent should be able to trace any endpoint to controller, service, reposit
   - `AnalyticsController.getCashFlow` -> `AnalyticsService.getCashFlow` -> `TransactionAnalyticsRepository.sumByUserIdAndDateRangeAndType`
 - `GET /api/v1/analytics/budget-insights`
   - `AnalyticsController.getBudgetInsights` -> `AnalyticsService.getBudgetInsights`
-  - Combines category spending history (`TransactionAnalyticsRepository.sumByCategory`) with current month budget targets (`BudgetTargetRepository.findByUserIdAndMonthKey`) to return per-category recommendation and month-to-date variance vs historical month-to-date averages for `EXPENSE` + system `UNCATEGORIZED` categories.
+  - Combines category spending history (`TransactionAnalyticsRepository.sumByCategory`) with effective budget targets through the requested month (`BudgetTargetRepository.findEffectiveByUserIdAndMonthKey`) to return per-category recommendation and month-to-date variance vs historical month-to-date averages for `EXPENSE` + system `UNCATEGORIZED` categories.
   - Recommendation amount uses normalized exponential recency weighting across baseline full-month spend (`0.5`, `0.25`, `0.125`, ...), while `averageMonthlySpend` remains simple arithmetic average for display.
 
 ### Budgets
 - `GET /api/v1/budgets?month=YYYY-MM`
-  - `BudgetController.getBudgetMonth` -> `BudgetService.getBudgetMonth` -> `BudgetTargetRepository.findByUserIdAndMonthKey`
+  - `BudgetController.getBudgetMonth` -> `BudgetService.getBudgetMonth` -> `BudgetTargetRepository.findEffectiveByUserIdAndMonthKey`
+  - Returns the effective month view: the latest budget for each category at or before the requested month, plus `hasChangesInMonth` to mark whether that month contains an explicit override/tombstone
 - `PUT /api/v1/budgets/{month}`
   - request DTO: `BudgetMonthUpsertRequest`
-  - `BudgetController.upsertBudgetMonth` -> `BudgetService.upsertBudgetMonth` -> `BudgetTargetRepository.replaceMonthTargets`
+  - `BudgetController.upsertBudgetMonth` -> `BudgetService.upsertBudgetMonth` -> `BudgetTargetRepository.upsertMonthTargets`
+  - Treats the payload as a full snapshot for that month and writes only the category deltas needed to make those targets persist forward from that month onward
 - `DELETE /api/v1/budgets/{month}/categories/{categoryId}`
-  - `BudgetController.deleteBudgetTarget` -> `BudgetService.deleteTarget` -> `BudgetTargetRepository.deleteByUserIdAndMonthKeyAndCategoryId`
+  - `BudgetController.deleteBudgetTarget` -> `BudgetService.deleteTarget` -> `BudgetTargetRepository.upsertMonthTargets`
+  - Writes a zero-amount tombstone for that month so clearing a target continues to suppress it in future months until changed again
 
 ### Recurring
 - `GET /api/v1/recurring`
@@ -364,6 +367,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
 - `V6__category_overrides.sql` adds per-user override/hide state for system categories.
 - `V7__transaction_rule_tracking.sql` adds `categorized_by_rule_id` linkage on transactions.
 - `V8__budget_targets.sql` adds persisted monthly category targets by user.
+- `budget_targets` now behave as effective-dated category rows: the latest row at or before a month wins, and zero-amount rows are tombstones for later-month clears.
 - `V9__account_net_worth_category_override.sql` adds optional per-account net worth category override.
 - `V10__categorization_rule_conditions.sql` adds structured rule condition arrays (`conditions_json`) and operator metadata.
 - `V11__normalize_uncategorized_category.sql` normalizes the system uncategorized category type/visibility and backfills legacy `NULL` transaction categories to it.
@@ -431,7 +435,7 @@ A new agent should be able to trace any endpoint to controller, service, reposit
   - `service/auth/AuthServiceTest.java` (15 tests)
   - `service/auth/JwtServiceTest.java` (11 tests)
   - `service/CategoryServiceTest.java` (13 tests)
-  - `service/BudgetServiceTest.java` (11 tests)
+  - `service/BudgetServiceTest.java` (13 tests)
   - `service/AccountServiceTest.java` (13 tests)
   - `service/TransferDetectionServiceTest.java` (10 tests)
   - `service/AnalyticsServiceTest.java` (9 tests)

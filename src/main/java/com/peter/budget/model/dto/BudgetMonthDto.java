@@ -15,4 +15,5 @@ public class BudgetMonthDto {
     private String month;
     private String currency;
     private List<BudgetTargetDto> targets;
+    private Boolean hasChangesInMonth;
 }

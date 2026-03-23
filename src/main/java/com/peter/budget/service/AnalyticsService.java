@@ -131,7 +131,7 @@ public class AnalyticsService {
         int asOfDay = asOfDate.getDayOfMonth();
 
         Map<Long, Category> categoryMap = categoryViewService.getEffectiveCategoryMapForUser(userId);
-        Map<Long, BigDecimal> budgetByCategoryId = budgetTargetRepository.findByUserIdAndMonthKey(userId, month.toString()).stream()
+        Map<Long, BigDecimal> budgetByCategoryId = budgetTargetRepository.findEffectiveByUserIdAndMonthKey(userId, month.toString()).stream()
                 .collect(java.util.stream.Collectors.toMap(
                         target -> target.getCategoryId(),
                         target -> target.getTargetAmount(),

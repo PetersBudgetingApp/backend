@@ -244,7 +244,7 @@ class AnalyticsServiceTest {
 
         when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID))
                 .thenReturn(Map.of(10L, groceries));
-        when(budgetTargetRepository.findByUserIdAndMonthKey(USER_ID, targetMonth.toString()))
+        when(budgetTargetRepository.findEffectiveByUserIdAndMonthKey(USER_ID, targetMonth.toString()))
                 .thenReturn(List.of(
                         BudgetTarget.builder().categoryId(10L).targetAmount(new BigDecimal("400.00")).build()
                 ));
@@ -306,7 +306,7 @@ class AnalyticsServiceTest {
 
         when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID))
                 .thenReturn(Map.of(99L, uncategorized));
-        when(budgetTargetRepository.findByUserIdAndMonthKey(USER_ID, targetMonth.toString()))
+        when(budgetTargetRepository.findEffectiveByUserIdAndMonthKey(USER_ID, targetMonth.toString()))
                 .thenReturn(List.of(
                         BudgetTarget.builder().categoryId(99L).targetAmount(new BigDecimal("50.00")).build()
                 ));
@@ -346,7 +346,7 @@ class AnalyticsServiceTest {
 
         when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID))
                 .thenReturn(Map.of(21L, travel));
-        when(budgetTargetRepository.findByUserIdAndMonthKey(USER_ID, targetMonth.toString()))
+        when(budgetTargetRepository.findEffectiveByUserIdAndMonthKey(USER_ID, targetMonth.toString()))
                 .thenReturn(List.of(
                         BudgetTarget.builder().categoryId(21L).targetAmount(new BigDecimal("0.00")).build()
                 ));

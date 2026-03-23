@@ -39,6 +39,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -341,13 +342,15 @@ public class MigrationService {
         }
 
         int count = 0;
-        for (SnapshotBudgetMonth month : budgets) {
-            if (month.getTargets() == null || month.getTargets().isEmpty()) {
-                continue;
-            }
+        List<SnapshotBudgetMonth> orderedMonths = budgets.stream()
+                .filter(month -> month != null && month.getMonth() != null && !month.getMonth().isBlank())
+                .sorted(Comparator.comparing(SnapshotBudgetMonth::getMonth))
+                .toList();
 
+        for (SnapshotBudgetMonth month : orderedMonths) {
             List<BudgetTargetRepository.UpsertBudgetTarget> targets = new ArrayList<>();
-            for (var target : month.getTargets()) {
+
+            for (var target : month.getTargets() == null ? List.<MigrationImportRequest.SnapshotBudgetTarget>of() : month.getTargets()) {
                 Long newCategoryId = categoryIdMap.get(target.getCategoryId());
                 if (newCategoryId == null) {
                     continue;
@@ -361,6 +364,24 @@ public class MigrationService {
             if (!targets.isEmpty()) {
                 budgetTargetRepository.replaceMonthTargets(userId, month.getMonth(), targets);
                 count += targets.size();
+                continue;
+            }
+
+            if (Boolean.TRUE.equals(month.getHasChangesInMonth())) {
+                List<BudgetTargetRepository.UpsertBudgetTarget> clearedTargets = budgetTargetRepository
+                        .findEffectiveByUserIdAndMonthKey(userId, month.getMonth())
+                        .stream()
+                        .map(target -> new BudgetTargetRepository.UpsertBudgetTarget(
+                                target.getCategoryId(),
+                                BigDecimal.ZERO,
+                                null
+                        ))
+                        .toList();
+
+                if (!clearedTargets.isEmpty()) {
+                    budgetTargetRepository.upsertMonthTargets(userId, month.getMonth(), clearedTargets);
+                    count += clearedTargets.size();
+                }
             }
         }
         return count;

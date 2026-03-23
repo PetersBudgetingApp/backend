@@ -51,7 +51,7 @@ class BudgetServiceTest {
 
     @Test
     void getBudgetMonthReturnsTargetsForMonth() {
-        when(budgetTargetRepository.findByUserIdAndMonthKey(USER_ID, "2026-02"))
+        when(budgetTargetRepository.findEffectiveByUserIdAndMonthKey(USER_ID, "2026-02"))
                 .thenReturn(List.of(BudgetTarget.builder()
                         .userId(USER_ID)
                         .monthKey("2026-02")
@@ -59,6 +59,8 @@ class BudgetServiceTest {
                         .targetAmount(new BigDecimal("500.00"))
                         .notes("Groceries")
                         .build()));
+        when(budgetTargetRepository.existsByUserIdAndMonthKey(USER_ID, "2026-02"))
+                .thenReturn(true);
 
         BudgetMonthDto result = budgetService.getBudgetMonth(USER_ID, "2026-02");
 
@@ -67,16 +69,19 @@ class BudgetServiceTest {
         assertEquals(1, result.getTargets().size());
         assertEquals(CATEGORY_ID, result.getTargets().get(0).getCategoryId());
         assertEquals(new BigDecimal("500.00"), result.getTargets().get(0).getTargetAmount());
+        assertEquals(Boolean.TRUE, result.getHasChangesInMonth());
     }
 
     @Test
-    void upsertBudgetMonthReplacesMonthTargets() {
+    void upsertBudgetMonthStoresChangedTargets() {
         when(categoryViewService.getEffectiveCategoryMapForUser(USER_ID))
                 .thenReturn(Map.of(CATEGORY_ID, Category.builder()
                         .id(CATEGORY_ID)
                         .categoryType(CategoryType.EXPENSE)
                         .build()));
-        when(budgetTargetRepository.findByUserIdAndMonthKey(USER_ID, "2026-02"))
+        when(budgetTargetRepository.findLatestByUserIdAndMonthKey(USER_ID, "2026-02"))
+                .thenReturn(List.of());
+        when(budgetTargetRepository.findEffectiveByUserIdAndMonthKey(USER_ID, "2026-02"))
                 .thenReturn(List.of(BudgetTarget.builder()
                         .userId(USER_ID)
                         .monthKey("2026-02")
@@ -97,7 +102,7 @@ class BudgetServiceTest {
                         .build()
         );
 
-        verify(budgetTargetRepository).replaceMonthTargets(
+        verify(budgetTargetRepository).upsertMonthTargets(
                 eq(USER_ID),
                 eq("2026-02"),
                 targetsCaptor.capture()
@@ -116,7 +121,9 @@ class BudgetServiceTest {
                         .id(UNCATEGORIZED_CATEGORY_ID)
                         .categoryType(CategoryType.UNCATEGORIZED)
                         .build()));
-        when(budgetTargetRepository.findByUserIdAndMonthKey(USER_ID, "2026-02"))
+        when(budgetTargetRepository.findLatestByUserIdAndMonthKey(USER_ID, "2026-02"))
+                .thenReturn(List.of());
+        when(budgetTargetRepository.findEffectiveByUserIdAndMonthKey(USER_ID, "2026-02"))
                 .thenReturn(List.of());
 
         budgetService.upsertBudgetMonth(
@@ -130,7 +137,7 @@ class BudgetServiceTest {
                         .build()
         );
 
-        verify(budgetTargetRepository).replaceMonthTargets(
+        verify(budgetTargetRepository).upsertMonthTargets(
                 eq(USER_ID),
                 eq("2026-02"),
                 targetsCaptor.capture()
@@ -161,7 +168,7 @@ class BudgetServiceTest {
         );
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
-        verify(budgetTargetRepository, never()).replaceMonthTargets(eq(USER_ID), eq("2026-02"), anyList());
+        verify(budgetTargetRepository, never()).upsertMonthTargets(eq(USER_ID), eq("2026-02"), anyList());
     }
 
     @Test
@@ -220,7 +227,9 @@ class BudgetServiceTest {
 
     @Test
     void upsertBudgetMonthHandlesNullTargets() {
-        when(budgetTargetRepository.findByUserIdAndMonthKey(USER_ID, "2026-02"))
+        when(budgetTargetRepository.findLatestByUserIdAndMonthKey(USER_ID, "2026-02"))
+                .thenReturn(List.of());
+        when(budgetTargetRepository.findEffectiveByUserIdAndMonthKey(USER_ID, "2026-02"))
                 .thenReturn(List.of());
 
         BudgetMonthDto result = budgetService.upsertBudgetMonth(
@@ -229,7 +238,7 @@ class BudgetServiceTest {
                 BudgetMonthUpsertRequest.builder().targets(null).build()
         );
 
-        verify(budgetTargetRepository).replaceMonthTargets(eq(USER_ID), eq("2026-02"), eq(List.of()));
+        verify(budgetTargetRepository, never()).upsertMonthTargets(eq(USER_ID), eq("2026-02"), anyList());
         assertEquals("2026-02", result.getMonth());
     }
 
@@ -240,7 +249,9 @@ class BudgetServiceTest {
                         .id(CATEGORY_ID)
                         .categoryType(CategoryType.EXPENSE)
                         .build()));
-        when(budgetTargetRepository.findByUserIdAndMonthKey(USER_ID, "2026-02"))
+        when(budgetTargetRepository.findLatestByUserIdAndMonthKey(USER_ID, "2026-02"))
+                .thenReturn(List.of());
+        when(budgetTargetRepository.findEffectiveByUserIdAndMonthKey(USER_ID, "2026-02"))
                 .thenReturn(List.of());
 
         budgetService.upsertBudgetMonth(
@@ -255,11 +266,40 @@ class BudgetServiceTest {
                         .build()
         );
 
-        verify(budgetTargetRepository).replaceMonthTargets(
+        verify(budgetTargetRepository).upsertMonthTargets(
                 eq(USER_ID),
                 eq("2026-02"),
                 targetsCaptor.capture()
         );
+        assertNull(targetsCaptor.getValue().get(0).notes());
+    }
+
+    @Test
+    void upsertBudgetMonthWritesZeroTargetWhenClearingInheritedBudget() {
+        when(budgetTargetRepository.findLatestByUserIdAndMonthKey(USER_ID, "2026-02"))
+                .thenReturn(List.of(BudgetTarget.builder()
+                        .userId(USER_ID)
+                        .monthKey("2026-01")
+                        .categoryId(CATEGORY_ID)
+                        .targetAmount(new BigDecimal("500.00"))
+                        .notes("Groceries")
+                        .build()));
+        when(budgetTargetRepository.findEffectiveByUserIdAndMonthKey(USER_ID, "2026-02"))
+                .thenReturn(List.of());
+
+        budgetService.upsertBudgetMonth(
+                USER_ID,
+                "2026-02",
+                BudgetMonthUpsertRequest.builder().targets(List.of()).build()
+        );
+
+        verify(budgetTargetRepository).upsertMonthTargets(
+                eq(USER_ID),
+                eq("2026-02"),
+                targetsCaptor.capture()
+        );
+        assertEquals(CATEGORY_ID, targetsCaptor.getValue().get(0).categoryId());
+        assertEquals(BigDecimal.ZERO, targetsCaptor.getValue().get(0).targetAmount());
         assertNull(targetsCaptor.getValue().get(0).notes());
     }
 
@@ -294,9 +334,22 @@ class BudgetServiceTest {
     }
 
     @Test
-    void deleteTargetNormalizesMonth() {
+    void deleteTargetWritesZeroTargetForInheritedBudget() {
+        when(budgetTargetRepository.findLatestByUserIdAndMonthKey(USER_ID, "2026-02"))
+                .thenReturn(List.of(BudgetTarget.builder()
+                        .userId(USER_ID)
+                        .monthKey("2026-01")
+                        .categoryId(CATEGORY_ID)
+                        .targetAmount(new BigDecimal("500.00"))
+                        .notes("Groceries")
+                        .build()));
+
         budgetService.deleteTarget(USER_ID, "2026-02", CATEGORY_ID);
 
-        verify(budgetTargetRepository).deleteByUserIdAndMonthKeyAndCategoryId(USER_ID, "2026-02", CATEGORY_ID);
+        verify(budgetTargetRepository).upsertMonthTargets(
+                eq(USER_ID),
+                eq("2026-02"),
+                eq(List.of(new BudgetTargetRepository.UpsertBudgetTarget(CATEGORY_ID, BigDecimal.ZERO, null)))
+        );
     }
 }
